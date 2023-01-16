@@ -94,7 +94,8 @@ export abstract class Container extends Node<ContainerEvents> {
     const existing = this[$data].get(prop);
 
     if (existing) {
-      this.$detach(existing);
+      this.$emit('detach', this, existing);
+      existing.$destroy();
       this[$data].delete(prop);
     }
 
@@ -125,6 +126,14 @@ export abstract class Container extends Node<ContainerEvents> {
 
     for (const [prop, value] of this.$entries()) {
       this.$attach(prop, value);
+    }
+  }
+
+  $destroy(): void {
+    super.$destroy();
+
+    for (const value of this) {
+      value.$destroy();
     }
   }
 

@@ -5,6 +5,7 @@ type EventHandler = (...args: any[]) => void;
 export type NodeEvents = {
   attached: (event: 'attached', node: Node, address: string) => void;
   detached: (event: 'detached', node: Node, address: string) => void;
+  destroy: (event: 'destroy', node: Node) => void;
 };
 
 const $address = Symbol('address');
@@ -27,6 +28,11 @@ export abstract class Node<TEvents extends NodeEvents = NodeEvents> {
     const address = this[$address];
     this[$address] = '';
     this.$emit('detached', this, address);
+  }
+
+  $destroy(): void {
+    this.$emit('destroy', this);
+    this.$off();
   }
 
   get $callable(): boolean {

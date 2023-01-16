@@ -82,6 +82,11 @@ export class Dispatcher<TPeer = unknown> {
 
     node.$on('attached', listeners.handleAttached);
     node.$on('detached', listeners.handleDetached);
+
+    node.$on('destroy', () => {
+      this.unmonitor(node);
+    });
+
     this.listeners.set(node, listeners);
   }
 
