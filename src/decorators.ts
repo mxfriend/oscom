@@ -19,10 +19,10 @@ export function Property(target: Container, property: string): void {
 
   Object.defineProperty(target, property, {
     get(): any {
-      return this.get(property);
+      return this.$get(property);
     },
     set(value: any) {
-      this.set(property, value);
+      this.$set(property, value);
     },
   });
 }
