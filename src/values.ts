@@ -43,7 +43,7 @@ export abstract class Value<T = any> extends Node<ValueEvents<T>> {
     }
   }
 
-  abstract $fromOSC(arg: OSCArgument): void;
+  abstract $fromOSC(arg: OSCArgument, local?: boolean): void;
   abstract $toOSC(): OSCArgument | undefined;
 
   [inspect.custom]() {
@@ -69,9 +69,9 @@ export abstract class NumericValue extends Value<number> {
     return this[$type];
   }
 
-  $fromOSC(arg: OSCArgument): void {
+  $fromOSC(arg: OSCArgument, local: boolean = false): void {
     assertOSCType(arg, this[$type]);
-    this.$set(arg.value);
+    this.$set(arg.value, local);
   }
 
   $toOSC(): OSCArgument | undefined {
@@ -102,15 +102,15 @@ export class ScaledValue extends FloatValue {
     this[$scale] = scale;
   }
 
-  $fromValue(value: number): void {
-    this.$set(this[$scale].valueToRaw(value));
+  $fromValue(value: number, local: boolean = true): void {
+    this.$set(this[$scale].valueToRaw(value), local);
   }
 
-  $fromOSC(arg: OSCArgument) {
+  $fromOSC(arg: OSCArgument, local: boolean = false) {
     if (isOSCType(arg, 'i')) {
-      this.$fromValue(arg.value);
+      this.$fromValue(arg.value, local);
     } else {
-      super.$fromOSC(arg);
+      super.$fromOSC(arg, local);
     }
   }
 
@@ -141,13 +141,22 @@ export class EnumValue<T extends number> extends Value<T> {
     this[$def] = def;
   }
 
-  $fromOSC(arg: OSCArgument): void {
+  $fromValue(value: string, local: boolean = true): void {
+    this.$set(enumNameToValue(this[$def], value) as T, local);
+  }
+
+  $fromOSC(arg: OSCArgument, local: boolean = false): void {
     if (isOSCType(arg, 's')) {
-      this.$set(enumNameToValue(this[$def], arg.value) as T);
+      this.$fromValue(arg.value, local);
     } else {
       assertOSCType(arg, 'i');
-      this.$set(arg.value as T);
+      this.$set(arg.value as T, local);
     }
+  }
+
+  $toValue(): string | undefined  {
+    const value = this.$get();
+    return value === undefined ? undefined : enumValueToName(this[$def], value);
   }
 
   $toOSC(): OSCArgument | undefined {
@@ -167,9 +176,9 @@ export class EnumValue<T extends number> extends Value<T> {
 }
 
 export class StringValue extends Value<string> {
-  $fromOSC(arg: OSCArgument): void {
+  $fromOSC(arg: OSCArgument, local: boolean = false): void {
     assertOSCType(arg, 's');
-    this.$set(arg.value);
+    this.$set(arg.value, local);
   }
 
   $toOSC(): OSCArgument | undefined {
