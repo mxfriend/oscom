@@ -1,0 +1,36 @@
+{
+  "name": "@mxfriend/oscom",
+  "description": "An abstract object model for OSC devices",
+  "license": "MIT",
+  "homepage": "https://github.com/mxfriend/oscom",
+  "repository": {
+    "type": "vcs",
+    "url": "https://github.com/mxfriend/oscom.git"
+  },
+  "version": "1.0.0",
+  "author": {
+    "name": "Dan Kadera",
+    "email": "me@subsonic.cz",
+    "url": "https://github.com/jahudka"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@mxfriend/osc": "^2.1.1",
+    "reflect-metadata": "^0.1.13"
+  },
+  "devDependencies": {
+    "@tsconfig/node16": "^1.0.2",
+    "@types/jest": "^27.4.1",
+    "@types/node": "^16.11.29",
+    "jest": "^27.5.1",
+    "ts-jest": "^27.1.4",
+    "typescript": "^4.6.3"
+  }
+}
