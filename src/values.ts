@@ -65,6 +65,10 @@ export abstract class NumericValue extends Value<number> {
     this[$type] = type;
   }
 
+  get $type(): 'i' | 'f' {
+    return this[$type];
+  }
+
   $fromOSC(arg: OSCArgument): void {
     assertOSCType(arg, this[$type]);
     this.$set(arg.value);
