@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 export * from './collection';
+export * from './command';
 export * from './container';
 export * from './dispatcher';
 export * from './decorators';
