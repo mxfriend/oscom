@@ -1,4 +1,4 @@
-import { OSCArgument } from '@mxfriend/osc';
+import { OSCArgument, EventEmitter, EventMap } from '@mxfriend/osc';
 
 type EventHandler = (...args: any[]) => void;
 
@@ -11,9 +11,9 @@ export type NodeEvents = {
 const $address = Symbol('address');
 const $events = Symbol('events');
 
-export abstract class Node<TEvents extends NodeEvents = NodeEvents> {
+export abstract class Node<TEvents extends EventMap = NodeEvents> {
   private [$address]: string = '';
-  private readonly [$events]: Map<string, Set<EventHandler>> = new Map();
+  private readonly [$events]: EventEmitter<TEvents> = new EventEmitter();
 
   get $address(): string {
     return this[$address];
@@ -43,43 +43,25 @@ export abstract class Node<TEvents extends NodeEvents = NodeEvents> {
     throw new Error('Node is not callable');
   }
 
-  $emit(event: string, ...args: any): void {
-    const handlers = this[$events].get(event);
-
-    if (handlers) {
-      for (const handler of handlers) {
-        handler(event, ...args);
-      }
-    }
-  }
-
   $on<E extends keyof TEvents>(event: E, handler: TEvents[E]): void;
   $on(event: string, handler: EventHandler): void;
   $on(event: string, handler: EventHandler): void {
-    this[$events].has(event) || this[$events].set(event, new Set());
-    this[$events].get(event)!.add(handler);
+    this[$events].on(event, handler);
   }
 
   $once<E extends keyof TEvents>(event: E, handler: TEvents[E]): void;
   $once(event: string, handler: EventHandler): void;
   $once(event: string, handler: EventHandler): void {
-    const wrapper: EventHandler = (...args) => {
-      this.$off(event, wrapper);
-      handler(...args);
-    };
-
-    this.$on(event, wrapper);
+    this[$events].once(event, handler);
   }
 
   $off<E extends keyof TEvents>(event: E, handler?: TEvents[E]): void;
   $off(event?: string, handler?: EventHandler): void;
   $off(event?: string, handler?: EventHandler): void {
-    if (!event) {
-      this[$events].clear();
-    } else if (!handler) {
-      this[$events].get(event)?.clear();
-    } else {
-      this[$events].get(event)?.delete(handler);
-    }
+    this[$events].off(event, handler);
+  }
+
+  $emit(event: string, ...args: any): boolean {
+    return this[$events].emit(event, ...args);
   }
 }
