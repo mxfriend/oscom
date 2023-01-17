@@ -36,7 +36,7 @@ export class Collection<T extends Node = any> extends Container {
 
     const existing = this[$items][prop];
 
-    if (existing) {
+    if (existing !== undefined) {
       return existing;
     }
 
@@ -56,6 +56,7 @@ export class Collection<T extends Node = any> extends Container {
 
     if (existing) {
       this.$detach(existing);
+      existing.$destroy();
       delete this[$items][prop];
     }
 
@@ -72,36 +73,18 @@ export class Collection<T extends Node = any> extends Container {
     }
   }
 
-  $slice(start?: number, end?: number): T[] {
-    return this[$items].slice(start, end);
-  }
-
-  $splice(start: number, deleteCount: number, ...items: T[]): T[] {
-    const removed = this[$items].splice(start, deleteCount, ...items);
-
-    for (const item of removed) {
-      this.$detach(item);
-    }
-
-    let i = start;
-
-    for (const item of items) {
-      this.$attach(i++, item);
-    }
-
-    return removed;
-  }
-
   * [Symbol.iterator](): IterableIterator<Node> {
     yield * super[Symbol.iterator]();
     yield * this.$items();
   }
 
-  * $entries(): IterableIterator<[string | number, Node]> {
-    yield * super.$entries();
+  * $entries(lazy: boolean = false): IterableIterator<[string | number, Node]> {
+    yield * super.$entries(lazy);
 
     for (let i = 0; i < this[$items].length; ++i) {
-      yield [i, this.$get(i)];
+      if (!lazy || this[$items][i] !== undefined) {
+        yield [i, this.$get(i)];
+      }
     }
   }
 

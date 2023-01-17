@@ -6,6 +6,7 @@ export * from './decorators';
 export * from './enums';
 export * from './factoryCache';
 export * from './node';
+export * from './root';
 export * from './scales';
 export * from './utils';
 export * from './values';

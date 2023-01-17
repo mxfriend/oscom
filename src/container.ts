@@ -70,7 +70,7 @@ export abstract class Container extends Node<ContainerEvents> {
   }
 
   $get<P extends string>(prop: P): Child<this, P>;
-  $get(prop: string): any {
+  $get(prop: string): Node {
     const existing = this[$data].get(prop);
 
     if (existing) {
@@ -84,11 +84,11 @@ export abstract class Container extends Node<ContainerEvents> {
   }
 
   $set<P extends string>(prop: P, node: Child<this, P>): void;
-  $set(prop: string, node: any): void {
+  $set(prop: string, node: Node): void {
     const existing = this[$data].get(prop);
 
     if (existing) {
-      this.$emit('detach', this, existing);
+      this.$detach(existing);
       existing.$destroy();
       this[$data].delete(prop);
     }
@@ -110,7 +110,7 @@ export abstract class Container extends Node<ContainerEvents> {
   $attached(address: string): void {
     super.$attached(address);
 
-    for (const [prop, value] of this.$entries()) {
+    for (const [prop, value] of this.$entries(true)) {
       this.$attach(prop, value);
     }
   }
@@ -118,21 +118,21 @@ export abstract class Container extends Node<ContainerEvents> {
   $detached(): void {
     super.$detached();
 
-    for (const [prop, value] of this.$entries()) {
-      this.$attach(prop, value);
+    for (const [, value] of this.$entries(true)) {
+      this.$detach(value);
     }
   }
 
   $destroy(): void {
     super.$destroy();
 
-    for (const value of this) {
+    for (const [, value] of this.$entries(true)) {
       value.$destroy();
     }
   }
 
   $merge(node: this): void {
-    for (const [prop, value] of node.$entries()) {
+    for (const [prop, value] of node.$entries(true)) {
       const dst = this.$get(prop as any) as any;
 
       if (value instanceof Container) {
@@ -151,9 +151,11 @@ export abstract class Container extends Node<ContainerEvents> {
     return this.$values();
   }
 
-  * $entries(): IterableIterator<[string | number, Node]> {
+  * $entries(lazy: boolean = false): IterableIterator<[string | number, Node]> {
     for (const prop of this.$getKnownProperties()) {
-      yield [prop, this.$get(prop)];
+      if (!lazy || this[$data].has(prop)) {
+        yield [prop, this.$get(prop)];
+      }
     }
   }
 
