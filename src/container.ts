@@ -4,21 +4,15 @@ import { createProperty, getKnownProperties } from './decorators';
 import { Node, NodeEvents } from './node';
 import { Value } from './values';
 
-export type ChildContainers<C extends Container> = keyof C & keyof {
-  [P in keyof C as C[P] extends Container ? P : never]: C[P];
+export type Children<C extends Container> = keyof C & keyof {
+  [P in keyof C as C[P] extends Node ? P : never]: C[P];
 };
-
-export type ChildValues<C extends Container> = keyof C & keyof {
-  [P in keyof C as C[P] extends Value ? P : never]: C[P];
-};
-
-export type Children<C extends Container> = ChildContainers<C> | ChildValues<C>;
 
 export type Child<C extends Container, P extends string> = P extends Children<C> ? C[P] : any;
 
 export type ContainerEvents = NodeEvents & {
-  attach: (event: 'attach', node: Container, child: Container | Value) => void;
-  detach: (event: 'detach', node: Container, child: Container | Value) => void;
+  attach: (event: 'attach', node: Container, child: Node) => void;
+  detach: (event: 'detach', node: Container, child: Node) => void;
 };
 
 const $callable = Symbol('callable');
@@ -26,7 +20,7 @@ const $data = Symbol('data');
 
 export abstract class Container extends Node<ContainerEvents> {
   private readonly [$callable]: boolean;
-  private readonly [$data]: Map<string, Container | Value>;
+  private readonly [$data]: Map<string, Node>;
 
   constructor(callable: boolean = false) {
     super();
@@ -103,12 +97,12 @@ export abstract class Container extends Node<ContainerEvents> {
     this.$attach(prop, node);
   }
 
-  protected $attach(prop: string | number, node: Container | Value): void {
+  protected $attach(prop: string | number, node: Node): void {
     node.$attached(`${this.$address}/${prop}`);
     this.$emit('attach', this, node);
   }
 
-  protected $detach(node: Container | Value): void {
+  protected $detach(node: Node): void {
     node.$detached();
     this.$emit('detach', this, node);
   }
@@ -143,7 +137,7 @@ export abstract class Container extends Node<ContainerEvents> {
 
       if (value instanceof Container) {
         dst.$merge(value);
-      } else {
+      } else if (value instanceof Value) {
         dst.$set(value.$get());
       }
     }
@@ -153,17 +147,17 @@ export abstract class Container extends Node<ContainerEvents> {
     return getKnownProperties(this);
   }
 
-  [Symbol.iterator](): IterableIterator<Container | Value> {
+  [Symbol.iterator](): IterableIterator<Node> {
     return this.$values();
   }
 
-  * $entries(): IterableIterator<[string | number, Container | Value]> {
+  * $entries(): IterableIterator<[string | number, Node]> {
     for (const prop of this.$getKnownProperties()) {
       yield [prop, this.$get(prop)];
     }
   }
 
-  * $values(): IterableIterator<Container | Value> {
+  * $values(): IterableIterator<Node> {
     for (const prop of this.$getKnownProperties()) {
       yield this.$get(prop);
     }

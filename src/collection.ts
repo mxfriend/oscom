@@ -1,7 +1,7 @@
 import { Child, Container } from './container';
-import { Value } from './values';
+import { Node } from './node';
 
-export type ItemFactory<T extends Container | Value = any> = {
+export type ItemFactory<T extends Node = any> = {
   (idx: number): T;
 };
 
@@ -9,7 +9,7 @@ const $factory = Symbol('factory');
 const $items = Symbol('items');
 const $pad = Symbol('pad');
 
-export class Collection<T extends Container | Value = any> extends Container {
+export class Collection<T extends Node = any> extends Container {
   private readonly [$factory]: ItemFactory<T>;
   private readonly [$items]: T[];
   private readonly [$pad]?: number;
@@ -63,7 +63,7 @@ export class Collection<T extends Container | Value = any> extends Container {
     this.$attach(prop, node);
   }
 
-  $attach(prop: string | number, value: Container | Value) {
+  $attach(prop: string | number, value: Node) {
     if (typeof prop === 'number') {
       const idx = (prop + 1).toString();
       super.$attach(this[$pad] ? idx.padStart(this[$pad], '0') : idx, value);
@@ -92,12 +92,12 @@ export class Collection<T extends Container | Value = any> extends Container {
     return removed;
   }
 
-  * [Symbol.iterator](): IterableIterator<Container | Value> {
+  * [Symbol.iterator](): IterableIterator<Node> {
     yield * super[Symbol.iterator]();
     yield * this.$items();
   }
 
-  * $entries(): IterableIterator<[string | number, Container | Value]> {
+  * $entries(): IterableIterator<[string | number, Node]> {
     yield * super.$entries();
 
     for (let i = 0; i < this[$items].length; ++i) {
