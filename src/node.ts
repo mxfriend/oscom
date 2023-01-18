@@ -1,19 +1,17 @@
-import { OSCArgument, EventEmitter, EventMap } from '@mxfriend/osc';
-
-type EventHandler = (...args: any[]) => void;
+import { OSCArgument, EventEmitter, EventMap, MergeEventMap } from '@mxfriend/osc';
 
 export type NodeEvents = {
-  attached: (event: 'attached', node: Node, address: string) => void;
-  detached: (event: 'detached', node: Node, address: string) => void;
-  destroy: (event: 'destroy', node: Node) => void;
+  attached: (address: string, node: Node) => void;
+  detached: (address: string, node: Node) => void;
+  destroy: (node: Node) => void;
 };
 
 const $address = Symbol('address');
 const $events = Symbol('events');
 
-export abstract class Node<TEvents extends EventMap = NodeEvents> {
+export abstract class Node<TEvents extends EventMap = {}> {
   private [$address]: string = '';
-  private readonly [$events]: EventEmitter<TEvents> = new EventEmitter();
+  private readonly [$events]: EventEmitter<MergeEventMap<NodeEvents, TEvents>> = new EventEmitter();
 
   get $address(): string {
     return this[$address];
@@ -21,13 +19,13 @@ export abstract class Node<TEvents extends EventMap = NodeEvents> {
 
   $attached(address: string): void {
     this[$address] = address;
-    this.$emit('attached', this, address);
+    this.$emit('attached', address, this);
   }
 
   $detached(): void {
     const address = this[$address];
     this[$address] = '';
-    this.$emit('detached', this, address);
+    this.$emit('detached', address, this);
   }
 
   $destroy(): void {
@@ -44,24 +42,26 @@ export abstract class Node<TEvents extends EventMap = NodeEvents> {
   }
 
   $on<E extends keyof TEvents>(event: E, handler: TEvents[E]): void;
-  $on(event: string, handler: EventHandler): void;
-  $on(event: string, handler: EventHandler): void {
+  $on<E extends keyof NodeEvents>(event: E, handler: NodeEvents[E]): void;
+  $on(event: any, handler: any): void {
     this[$events].on(event, handler);
   }
 
   $once<E extends keyof TEvents>(event: E, handler: TEvents[E]): void;
-  $once(event: string, handler: EventHandler): void;
-  $once(event: string, handler: EventHandler): void {
+  $once<E extends keyof NodeEvents>(event: E, handler: NodeEvents[E]): void;
+  $once(event: any, handler: any): void {
     this[$events].once(event, handler);
   }
 
   $off<E extends keyof TEvents>(event: E, handler?: TEvents[E]): void;
-  $off(event?: string, handler?: EventHandler): void;
-  $off(event?: string, handler?: EventHandler): void {
+  $off<E extends keyof NodeEvents>(event?: E, handler?: NodeEvents[E]): void;
+  $off(event?: any, handler?: any): void {
     this[$events].off(event, handler);
   }
 
-  $emit(event: string, ...args: any): boolean {
+  $emit<E extends keyof TEvents>(event: E, ...args: Parameters<TEvents[E]>): void;
+  $emit<E extends keyof NodeEvents>(event: E, ...args: Parameters<NodeEvents[E]>): void;
+  $emit(event: any, ...args: any): boolean {
     return this[$events].emit(event, ...args);
   }
 }

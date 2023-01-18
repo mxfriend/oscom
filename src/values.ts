@@ -1,13 +1,13 @@
 import { OSCArgument, assertOSCType, isOSCType } from '@mxfriend/osc';
 import { inspect } from 'util';
 import { EnumDefinition, enumNameToValue, enumValueToName } from './enums';
-import { Node, NodeEvents } from './node';
+import { Node } from './node';
 import { Scale } from './scales';
 
 
-export type ValueEvents<T = any> = NodeEvents & {
-  'local-change': (event: 'local-change', node: Value<T>, value: T | undefined) => void;
-  'remote-change': (event: 'remote-change', node: Value<T>, value: T | undefined) => void;
+export type ValueEvents<T = any> = {
+  'local-change': (value: T | undefined, node: Value<T>) => void;
+  'remote-change': (value: T | undefined, node: Value<T>) => void;
 };
 
 const $value = Symbol('value');
@@ -22,7 +22,7 @@ export abstract class Value<T = any> extends Node<ValueEvents<T>> {
   $set(value: T | undefined, local: boolean = true): void {
     if (value !== this[$value]) {
       this[$value] = value;
-      this.$emit(local ? 'local-change' : 'remote-change', this, value);
+      this.$emit(local ? 'local-change' : 'remote-change', value, this);
     }
   }
 

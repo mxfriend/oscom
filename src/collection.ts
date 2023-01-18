@@ -31,13 +31,19 @@ export class Collection<T extends Node = any> extends Container {
   $get(prop: number): T;
   $get(prop: string | number): any {
     if (typeof prop === 'string') {
-      return super.$get(prop);
+      if (/^\d+$/.test(prop)) {
+        prop = parseInt(prop.replace(/^0+(?!$)/, '')) - 1;
+      } else {
+        return super.$get(prop);
+      }
     }
 
     const existing = this[$items][prop];
 
     if (existing !== undefined) {
       return existing;
+    } else if (prop < 0 || prop >= this[$items].length) {
+      throw new Error(`Container index out of range: ${prop}`);
     }
 
     const value = this[$items][prop] = this[$factory](prop);
@@ -49,7 +55,15 @@ export class Collection<T extends Node = any> extends Container {
   $set(item: number, node: T): void;
   $set(prop: string | number, node: any): void {
     if (typeof prop === 'string') {
-      return super.$set(prop, node);
+      if (/^\d+$/.test(prop)) {
+        prop = parseInt(prop.replace(/^0+(?!$)/, '')) - 1;
+      } else {
+        return super.$set(prop, node);
+      }
+    }
+
+    if (prop < 0 || prop >= this[$items].length) {
+      throw new Error(`Container index out of range: ${prop}`);
     }
 
     const existing = this[$items][prop];
@@ -62,6 +76,14 @@ export class Collection<T extends Node = any> extends Container {
 
     this[$items][prop] = node;
     this.$attach(prop, node);
+  }
+
+  $has(prop: string | number): boolean {
+    if (typeof prop === 'string' && /^\d+$/.test(prop)) {
+      prop = parseInt(prop.replace(/^0+(?!$)/, '')) - 1;
+    }
+
+    return typeof prop === 'number' ? prop >= 0 && prop < this[$items].length : super.$has(prop);
   }
 
   $attach(prop: string | number, value: Node) {

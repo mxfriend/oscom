@@ -18,22 +18,33 @@ export class Root extends Container {
   $lookup(address: string, need: boolean = true): Node | undefined {
     const node = this[$map].get(address);
 
-    if (!node && need) {
-      throw new Error(`Address not found: '${address}'`);
+    if (node) {
+      return node;
     }
 
-    return node;
+    const path = address.replace(/^\//, '').split(/\//g);
+    let cursor: Node = this;
+
+    for (let prop of path) {
+      if (!(cursor instanceof Container) || !cursor.$has(prop)) {
+        throw new Error(`Address not found: '${address}'`);
+      }
+
+      cursor = cursor.$get(prop);
+    }
+
+    return cursor;
   };
 
   private $setupContainer(container: Container): void {
     container.$on('attach', this.$handleAttach);
 
     for (const [, node] of container.$entries(true)) {
-      this.$handleAttach('attach', container, node);
+      this.$handleAttach(node);
     }
   }
 
-  private $handleAttach(evt: 'attach', node: Container, child: Node): void {
+  private $handleAttach(child: Node): void {
     this[$map].set(child.$address, child);
     child.$on('detached', this.$handleDetached);
 
@@ -42,7 +53,7 @@ export class Root extends Container {
     }
   }
 
-  private $handleDetached(evt: 'detached', node: Node, address: string): void {
+  private $handleDetached(address: string, node: Node): void {
     this[$map].delete(address);
     node.$off('detached', this.$handleDetached);
 

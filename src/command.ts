@@ -1,16 +1,16 @@
 import { OSCArgument } from '@mxfriend/osc';
-import { Node, NodeEvents } from './node';
+import { Node } from './node';
 
-export type CommandEvents = NodeEvents & {
-  'local-call': (evt: 'local-call', node: Command, args?: OSCArgument[]) => void;
-  'remote-call': (evt: 'remote-call', node: Command, args?: OSCArgument[]) => void;
+export type CommandEvents = {
+  'local-call': (args: OSCArgument[], node: Command) => void;
+  'remote-call': (args: OSCArgument[], node: Command) => void;
 };
 
 export abstract class Command extends Node<CommandEvents> {
   public abstract $call(...args: any): void;
 
   public $handleCall(...args: OSCArgument[]): undefined {
-    this.$emit('remote-call', this, args);
+    this.$emit('remote-call', args, this);
     return undefined;
   }
 }

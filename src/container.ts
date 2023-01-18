@@ -1,7 +1,7 @@
 import { OSCArgument } from '@mxfriend/osc';
 import { inspect } from 'util';
 import { createProperty, getKnownProperties } from './decorators';
-import { Node, NodeEvents } from './node';
+import { Node } from './node';
 import { Value } from './values';
 
 export type Children<C extends Container> = keyof C & keyof {
@@ -10,9 +10,9 @@ export type Children<C extends Container> = keyof C & keyof {
 
 export type Child<C extends Container, P extends string> = P extends Children<C> ? C[P] : any;
 
-export type ContainerEvents = NodeEvents & {
-  attach: (event: 'attach', node: Container, child: Node) => void;
-  detach: (event: 'detach', node: Container, child: Node) => void;
+export type ContainerEvents = {
+  attach: (child: Node, container: Container) => void;
+  detach: (child: Node, container: Container) => void;
 };
 
 const $callable = Symbol('callable');
@@ -75,6 +75,8 @@ export abstract class Container extends Node<ContainerEvents> {
 
     if (existing) {
       return existing;
+    } else if (!this.$has(prop)) {
+      throw new Error(`Unknown property: '${prop}'`);
     }
 
     const value = createProperty(this, prop);
@@ -97,14 +99,18 @@ export abstract class Container extends Node<ContainerEvents> {
     this.$attach(prop, node);
   }
 
+  $has(prop: string): boolean {
+    return this.$getKnownProperties().includes(prop);
+  }
+
   protected $attach(prop: string | number, node: Node): void {
     node.$attached(`${this.$address}/${prop}`);
-    this.$emit('attach', this, node);
+    this.$emit('attach', node, this);
   }
 
   protected $detach(node: Node): void {
     node.$detached();
-    this.$emit('detach', this, node);
+    this.$emit('detach', node, this);
   }
 
   $attached(address: string): void {

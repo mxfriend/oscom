@@ -4,19 +4,19 @@ import { Container } from './container';
 import { Node } from './node';
 import { Value } from './values';
 
-type NodeListeners<TPeer = unknown, TValue = any> = {
-  handleCall: (message: OSCMessage, peer?: TPeer) => void;
-  handleLocalChange?: (event: 'local-change', node: Value<TValue>, value: TValue) => void;
-  handleLocalCall?: (event: 'local-call', node: Command, args?: OSCArgument[]) => void;
-  handleAttached: (event: 'attached', node: Node, address: string) => void;
-  handleDetached: (event: 'detached', node: Node, address: string) => void;
+type NodeListeners = {
+  handleCall: (message: OSCMessage, peer?: unknown) => void;
+  handleLocalChange?: (value: unknown, node: Value<unknown>) => void;
+  handleLocalCall?: (args: OSCArgument[]) => void;
+  handleAttached: (address: string) => void;
+  handleDetached: (address: string) => void;
 };
 
-export class Dispatcher<TPeer = unknown> {
-  private readonly port: AbstractOSCPort<TPeer>;
-  private readonly listeners: Map<Node, NodeListeners<TPeer>> = new Map();
+export class Dispatcher {
+  private readonly port: AbstractOSCPort;
+  private readonly listeners: Map<Node, NodeListeners> = new Map();
 
-  constructor(port: AbstractOSCPort<TPeer>) {
+  constructor(port: AbstractOSCPort) {
     this.port = port;
   }
 
@@ -45,7 +45,7 @@ export class Dispatcher<TPeer = unknown> {
   }
 
   private monitor(node: Node): void {
-    const listeners: NodeListeners<TPeer> = {
+    const listeners: NodeListeners = {
       handleCall: async (message, peer) => {
         const response = node.$handleCall(...message.args);
 
@@ -53,7 +53,7 @@ export class Dispatcher<TPeer = unknown> {
           await this.port.send(node.$address, Array.isArray(response) ? response : [response], peer);
         }
       },
-      handleAttached: (_, node, address) => {
+      handleAttached: (address) => {
         this.port.subscribe(address, listeners.handleCall);
 
         if (node instanceof Value) {
@@ -62,7 +62,7 @@ export class Dispatcher<TPeer = unknown> {
           node.$on('local-call', listeners.handleLocalCall!);
         }
       },
-      handleDetached: (_, node, address) => {
+      handleDetached: (address) => {
         this.port.unsubscribe(address, listeners.handleCall);
 
         if (node instanceof Value) {
@@ -84,7 +84,7 @@ export class Dispatcher<TPeer = unknown> {
 
         node.$on('local-change', listeners.handleLocalChange);
       } else if (node instanceof Command) {
-        listeners.handleLocalCall = async (_, node, args) => {
+        listeners.handleLocalCall = async (args) => {
           node.$address && await this.port.send(node.$address, args);
         };
 
@@ -114,13 +114,7 @@ export class Dispatcher<TPeer = unknown> {
     this.listeners.delete(node);
 
     if (node.$address) {
-      this.port.unsubscribe(node.$address, listeners.handleCall);
-
-      if (node instanceof Value) {
-        node.$off('local-change', listeners.handleLocalChange);
-      } else if (node instanceof Command) {
-        node.$off('local-call', listeners.handleLocalCall);
-      }
+      listeners.handleDetached(node.$address);
     }
   }
 }
