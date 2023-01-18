@@ -13,7 +13,7 @@ type NodeListeners = {
 };
 
 export class Dispatcher {
-  private readonly port: AbstractOSCPort;
+  protected readonly port: AbstractOSCPort;
   private readonly listeners: Map<Node, NodeListeners> = new Map();
 
   constructor(port: AbstractOSCPort) {
@@ -44,7 +44,44 @@ export class Dispatcher {
     }
   }
 
+  async query<T>(node: Value<T>, timeout?: number): Promise<T | undefined> {
+    return new Promise(async (resolve, reject) => {
+      let to: NodeJS.Timeout;
+      let qi: NodeJS.Timeout;
+
+      const done = (message: OSCMessage) => {
+        cleanup();
+
+        if (!this.listeners.has(node)) {
+          node.$handleCall(...message.args);
+        }
+
+        resolve(node.$get());
+      };
+
+      const abort = () => {
+        cleanup();
+        reject(new Error('Timeout'));
+      };
+
+      const cleanup = () => {
+        this.port.unsubscribe(node.$address, done);
+        to && clearTimeout(to);
+        qi && clearInterval(qi);
+      };
+
+      this.port.subscribe(node.$address, done);
+      await this.port.send(node.$address);
+      qi = setInterval(async () => this.port.send(node.$address), 2000);
+      timeout && (to = setTimeout(abort, timeout));
+    });
+  }
+
   private monitor(node: Node): void {
+    if (this.listeners.has(node)) {
+      return;
+    }
+
     const listeners: NodeListeners = {
       handleCall: async (message, peer) => {
         const response = node.$handleCall(...message.args);
