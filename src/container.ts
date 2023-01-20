@@ -13,7 +13,6 @@ export type Child<C extends Container, P extends string> = P extends Children<C>
 export type ContainerEvents = {
   attach: [child: Node, container: Container];
   detach: [child: Node, container: Container];
-  'remote-call': [args: OSCArgument[] | undefined, node: Container, peer?: unknown];
 };
 
 const $callable = Symbol('callable');
