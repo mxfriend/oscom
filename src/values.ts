@@ -1,6 +1,5 @@
 import {
   OSCArgument,
-  assertOSCType,
   isOSCType,
   osc,
   EventMapExtension,
@@ -88,8 +87,9 @@ export abstract class NumericValue extends Value<number> {
   }
 
   $fromOSC(arg: OSCArgument, local: boolean = false, peer?: unknown): void {
-    assertOSCType(arg, this[$type]);
-    this.$set(arg.value, local, peer);
+    if (isOSCType(arg, this[$type])) {
+      this.$set(arg.value, local, peer);
+    }
   }
 
   $toOSC(): OSCArgument | undefined {
@@ -165,8 +165,7 @@ export class EnumValue<T extends number> extends Value<T> {
   $fromOSC(arg: OSCArgument, local: boolean = false, peer?: unknown): void {
     if (isOSCType(arg, 's')) {
       this.$set(enumNameToValue(this[$def], arg.value) as T, local, peer);
-    } else {
-      assertOSCType(arg, 'i');
+    } else if (isOSCType(arg, 'i')) {
       this.$set(arg.value as T, local);
     }
   }
@@ -193,8 +192,9 @@ export class EnumValue<T extends number> extends Value<T> {
 
 export class StringValue extends Value<string> {
   $fromOSC(arg: OSCArgument, local: boolean = false, peer?: unknown): void {
-    assertOSCType(arg, 's');
-    this.$set(arg.value, local, peer);
+    if (isOSCType(arg, 's')) {
+      this.$set(arg.value, local, peer);
+    }
   }
 
   $toOSC(): OSCArgument | undefined {
