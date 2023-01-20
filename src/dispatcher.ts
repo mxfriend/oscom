@@ -7,7 +7,7 @@ import { Value } from './values';
 type NodeListeners = {
   handleCall: (message: OSCMessage, peer?: unknown) => void;
   handleLocalChange?: (value: unknown, node: Value<unknown>) => void;
-  handleLocalCall?: (args: OSCArgument[]) => void;
+  handleLocalCall?: (args?: OSCArgument[]) => void;
   handleAttached: (address: string) => void;
   handleDetached: (address: string) => void;
 };
@@ -49,11 +49,11 @@ export class Dispatcher {
       let to: NodeJS.Timeout;
       let qi: NodeJS.Timeout;
 
-      const done = (message: OSCMessage) => {
+      const done = (message: OSCMessage, peer?: unknown) => {
         cleanup();
 
         if (!this.listeners.has(node)) {
-          node.$handleCall(...message.args);
+          node.$handleCall(message.args, peer);
         }
 
         resolve(node.$get());
@@ -84,7 +84,7 @@ export class Dispatcher {
 
     const listeners: NodeListeners = {
       handleCall: async (message, peer) => {
-        const response = node.$handleCall(...message.args);
+        const response = node.$handleCall(message.args, peer);
 
         if (response) {
           await this.port.send(node.$address, Array.isArray(response) ? response : [response], peer);

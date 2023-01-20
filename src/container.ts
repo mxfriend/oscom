@@ -13,6 +13,7 @@ export type Child<C extends Container, P extends string> = P extends Children<C>
 export type ContainerEvents = {
   attach: (child: Node, container: Container) => void;
   detach: (child: Node, container: Container) => void;
+  'remote-call': (args: OSCArgument[] | undefined, node: Container, peer?: unknown) => void;
 };
 
 const $callable = Symbol('callable');
@@ -32,7 +33,7 @@ export abstract class Container extends Node<ContainerEvents> {
     return this[$callable];
   }
 
-  $handleCall(...args: OSCArgument[]): OSCArgument[] | undefined {
+  $handleCall(args: OSCArgument[], peer?: unknown): OSCArgument[] | undefined {
     if (!this[$callable]) {
       throw new Error('Node is not callable');
     }
@@ -44,7 +45,7 @@ export abstract class Container extends Node<ContainerEvents> {
         const node: any = this.$get(props[i]);
 
         if (node instanceof Value) {
-          node.$handleCall(args[i]);
+          node.$handleCall([args[i]], peer);
         } else {
           break;
         }

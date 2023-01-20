@@ -37,7 +37,7 @@ export abstract class Node<TEvents extends EventMap = {}> {
     return false;
   }
 
-  $handleCall(...args: OSCArgument[]): OSCArgument[] | OSCArgument | undefined {
+  $handleCall(args?: OSCArgument[], peer?: unknown): OSCArgument[] | OSCArgument | undefined {
     throw new Error('Node is not callable');
   }
 
