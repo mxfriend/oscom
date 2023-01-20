@@ -2,8 +2,8 @@ import { OSCArgument } from '@mxfriend/osc';
 import { Node } from './node';
 
 export type CommandEvents = {
-  'local-call': (args: OSCArgument[] | undefined, node: Command) => void;
-  'remote-call': (args: OSCArgument[] | undefined, node: Command, peer?: unknown) => void;
+  'local-call': [args: OSCArgument[] | undefined, node: Command];
+  'remote-call': [args: OSCArgument[] | undefined, node: Command, peer?: unknown];
 };
 
 export abstract class Command extends Node<CommandEvents> {

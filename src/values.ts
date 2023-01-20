@@ -1,4 +1,11 @@
-import { OSCArgument, assertOSCType, isOSCType, osc } from '@mxfriend/osc';
+import {
+  OSCArgument,
+  assertOSCType,
+  isOSCType,
+  osc,
+  EventMapExtension,
+  MergeEventMap,
+} from '@mxfriend/osc';
 import { inspect } from 'util';
 import { EnumDefinition, enumNameToValue, enumValueToName } from './enums';
 import { Node } from './node';
@@ -6,13 +13,16 @@ import { Scale } from './scales';
 
 
 export type ValueEvents<T = any> = {
-  'local-change': (value: T | undefined, node: Value<T>) => void;
-  'remote-change': (value: T | undefined, node: Value<T>, peer?: unknown) => void;
+  'local-change': [value: T | undefined, node: Value<T>];
+  'remote-change': [value: T | undefined, node: Value<T>, peer?: unknown];
 };
 
 const $value = Symbol('value');
 
-export abstract class Value<T = any> extends Node<ValueEvents<T>> {
+export abstract class Value<
+  T = any,
+  TEvents extends EventMapExtension<ValueEvents<T>> = {},
+> extends Node<MergeEventMap<ValueEvents<T>, TEvents>> {
   private [$value]?: T = undefined;
 
   $get(): T | undefined {
@@ -22,7 +32,12 @@ export abstract class Value<T = any> extends Node<ValueEvents<T>> {
   $set(value: T | undefined, local: boolean = true, peer?: unknown): void {
     if (value !== this[$value]) {
       this[$value] = value;
-      this.$emit(local ? 'local-change' : 'remote-change', value, this, peer);
+
+      if (local) {
+        this.$emit('local-change', value, this);
+      } else {
+        this.$emit('remote-change', value, this, peer);
+      }
     }
   }
 

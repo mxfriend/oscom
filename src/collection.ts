@@ -1,4 +1,5 @@
-import { Child, Container } from './container';
+import { EventMapExtension } from '@mxfriend/osc';
+import { Child, Container, ContainerEvents } from './container';
 import { Node } from './node';
 
 export type ItemFactory<T extends Node = any> = {
@@ -9,7 +10,10 @@ const $factory = Symbol('factory');
 const $items = Symbol('items');
 const $pad = Symbol('pad');
 
-export class Collection<T extends Node = any> extends Container {
+export class Collection<
+  T extends Node = any,
+  TEvents extends EventMapExtension<ContainerEvents> = {},
+> extends Container<TEvents> {
   private readonly [$factory]: ItemFactory<T>;
   private readonly [$items]: T[];
   private readonly [$pad]?: number;

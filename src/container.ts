@@ -1,4 +1,4 @@
-import { OSCArgument } from '@mxfriend/osc';
+import { EventMapExtension, MergeEventMap, OSCArgument } from '@mxfriend/osc';
 import { inspect } from 'util';
 import { createProperty, getKnownProperties } from './decorators';
 import { Node } from './node';
@@ -11,15 +11,17 @@ export type Children<C extends Container> = keyof C & keyof {
 export type Child<C extends Container, P extends string> = P extends Children<C> ? C[P] : any;
 
 export type ContainerEvents = {
-  attach: (child: Node, container: Container) => void;
-  detach: (child: Node, container: Container) => void;
-  'remote-call': (args: OSCArgument[] | undefined, node: Container, peer?: unknown) => void;
+  attach: [child: Node, container: Container];
+  detach: [child: Node, container: Container];
+  'remote-call': [args: OSCArgument[] | undefined, node: Container, peer?: unknown];
 };
 
 const $callable = Symbol('callable');
 const $data = Symbol('data');
 
-export abstract class Container extends Node<ContainerEvents> {
+export abstract class Container<
+  TEvents extends EventMapExtension<ContainerEvents> = {},
+> extends Node<MergeEventMap<ContainerEvents, TEvents>> {
   private readonly [$callable]: boolean;
   private readonly [$data]: Map<string, Node>;
 
