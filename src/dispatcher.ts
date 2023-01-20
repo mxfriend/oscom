@@ -1,4 +1,4 @@
-import { AbstractOSCPort, OSCArgument, OSCMessage } from '@mxfriend/osc';
+import { AbstractOSCPort, EventEmitter, OSCArgument, OSCMessage } from '@mxfriend/osc';
 import { Command } from './command';
 import { Container } from './container';
 import { Node } from './node';
@@ -12,11 +12,17 @@ type NodeListeners = {
   handleDetached: (address: string) => void;
 };
 
-export class Dispatcher {
+export type DispatcherEvents = {
+  monitor: [node: Node];
+  unmonitor: [node: Node];
+};
+
+export class Dispatcher extends EventEmitter<DispatcherEvents> {
   protected readonly port: AbstractOSCPort;
   private readonly listeners: Map<Node, NodeListeners> = new Map();
 
   constructor(port: AbstractOSCPort) {
+    super();
     this.port = port;
   }
 
@@ -137,6 +143,7 @@ export class Dispatcher {
     });
 
     this.listeners.set(node, listeners);
+    this.emit('monitor', node);
   }
 
   private unmonitor(node: Node): void {
@@ -153,5 +160,7 @@ export class Dispatcher {
     if (node.$address) {
       listeners.handleDetached(node.$address);
     }
+
+    this.emit('unmonitor', node);
   }
 }
