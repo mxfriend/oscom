@@ -8,7 +8,7 @@ export function toSignificantDigits(value: number, digits: number, round: boolea
   const scaled = value / scale;
   const truncated = round ? Math.round(scaled) : Math.trunc(scaled);
   const result = truncated * scale;
-  return result.toString();
+  return result.toFixed(Math.max(0, digits - e - 1));
 }
 
 export function toDecimalPlaces(value: number, places: number, round: boolean = false): string {
