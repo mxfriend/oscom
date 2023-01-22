@@ -9,6 +9,7 @@ export type ContainerPropertyDecorator = {
 };
 
 export type PropertyFactory = () => any;
+export type PropertyWrapper<T = any> = (property: T) => T;
 
 export function Property(target: Container, property: string): void {
   Reflect.defineMetadata(
@@ -27,6 +28,17 @@ export function Property(target: Container, property: string): void {
   });
 }
 
+function getDefaultPropertyFactory(target: any, prop: string): PropertyFactory {
+  return () => {
+    const type = Reflect.getMetadata('design:type', target, prop);
+    return new type();
+  };
+}
+
+function getPropertyFactory(target: any, prop: string): PropertyFactory {
+  return Reflect.getMetadata('custom:factory', target, prop) ?? getDefaultPropertyFactory(target, prop);
+}
+
 export function createFactoryDecorator(factory: PropertyFactory): ContainerPropertyDecorator {
   return (target, property) => {
     Reflect.defineMetadata('custom:factory', factory, target, property);
@@ -34,15 +46,15 @@ export function createFactoryDecorator(factory: PropertyFactory): ContainerPrope
   };
 }
 
+export function wrapPropertyFactory(target: any, prop: string, wrapper: PropertyWrapper): void {
+  const factory = getPropertyFactory(target, prop);
+  const wrapped = () => wrapper(factory());
+  Reflect.defineMetadata('custom:factory', wrapped, target, prop);
+}
+
 export function createProperty(target: any, prop: string): any {
-  const factory = Reflect.getMetadata('custom:factory', target, prop);
-
-  if (factory) {
-    return factory();
-  }
-
-  const type = Reflect.getMetadata('design:type', target, prop);
-  return new type();
+  const factory = getPropertyFactory(target, prop);
+  return factory();
 }
 
 export function getKnownProperties(target: any): any[] {
