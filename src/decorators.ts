@@ -46,10 +46,12 @@ export function createFactoryDecorator(factory: PropertyFactory): ContainerPrope
   };
 }
 
-export function wrapPropertyFactory(target: any, prop: string, wrapper: PropertyWrapper): void {
-  const factory = getPropertyFactory(target, prop);
-  const wrapped = () => wrapper(factory());
-  Reflect.defineMetadata('custom:factory', wrapped, target, prop);
+export function createFactoryWrapper(wrapper: PropertyWrapper): ContainerPropertyDecorator {
+  return (target, property) => {
+    const factory = getPropertyFactory(target, property);
+    const wrapped = () => wrapper(factory());
+    Reflect.defineMetadata('custom:factory', wrapped, target, property);
+  };
 }
 
 export function createProperty(target: any, prop: string): any {
@@ -62,6 +64,10 @@ export function getKnownProperties(target: any): any[] {
 }
 
 const linearScales = new FactoryCache((min: number, max: number, steps: number) => new LinearScale(min, max, steps));
+
+export function getLinearScale(min: number, max: number, steps: number): LinearScale {
+  return linearScales.get(min, max, steps);
+}
 
 export function Linear(
   min: number,
