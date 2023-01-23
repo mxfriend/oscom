@@ -17,6 +17,9 @@ export type DispatcherEvents = {
   unmonitor: [node: Node];
 };
 
+type QueryNodes<T extends [...any]> = { [i in keyof T]: Value<T[i]> };
+type QueryResult<T extends [...any]> = Promise<{ [i in keyof T]: T[i] | undefined }>;
+
 export class Dispatcher extends EventEmitter<DispatcherEvents> {
   protected readonly port: AbstractOSCPort;
   private readonly listeners: Map<Node, NodeListeners> = new Map();
@@ -26,31 +29,51 @@ export class Dispatcher extends EventEmitter<DispatcherEvents> {
     this.port = port;
   }
 
-  public add(node: Node): void {
-    if (node.$callable) {
-      this.monitor(node);
-    }
+  public async addAndQuery<T>(node: Value<T>): Promise<T>;
+  public async addAndQuery<T extends [any, any, ...any]>(...nodes: QueryNodes<T>): QueryResult<T>;
+  public async addAndQuery(...nodes: Value[]): Promise<any[]>;
+  public async addAndQuery(...nodes: Value[]): Promise<any | any[]> {
+    this.add(...nodes);
+    return this.query(...nodes);
+  }
 
-    if (node instanceof Container) {
-      for (const child of node) {
-        this.add(child);
+  public add(...nodes: Node[]): void {
+    for (const node of nodes) {
+      if (node.$callable) {
+        this.monitor(node);
+      }
+
+      if (node instanceof Container) {
+        for (const child of node) {
+          this.add(child);
+        }
       }
     }
   }
 
-  public remove(node: Node): void {
-    if (node.$callable) {
-      this.unmonitor(node);
-    }
+  public remove(...nodes: Node[]): void {
+    for (const node of nodes) {
+      if (node.$callable) {
+        this.unmonitor(node);
+      }
 
-    if (node instanceof Container) {
-      for (const child of node) {
-        this.remove(child);
+      if (node instanceof Container) {
+        for (const child of node) {
+          this.remove(child);
+        }
       }
     }
   }
 
-  async query<T>(node: Value<T>, timeout?: number): Promise<T | undefined> {
+  async query<T>(node: Value<T>): Promise<T | undefined>;
+  async query<T extends [any, any, ...any]>(...nodes: QueryNodes<T>): QueryResult<T>;
+  async query(...nodes: Value[]): Promise<any[]>;
+  async query(...nodes: Value[]): Promise<any | any[]> {
+    const result = await Promise.all(nodes.map((node) => this.queryNode(node)));
+    return result.length > 1 ? result : result[0];
+  }
+
+  private async queryNode<T>(node: Value<T>, timeout?: number): Promise<T | undefined> {
     return new Promise(async (resolve, reject) => {
       let to: NodeJS.Timeout;
       let qi: NodeJS.Timeout;
@@ -78,7 +101,7 @@ export class Dispatcher extends EventEmitter<DispatcherEvents> {
 
       this.port.subscribe(node.$address, done);
       await this.port.send(node.$address);
-      qi = setInterval(async () => this.port.send(node.$address), 2000);
+      qi = setInterval(async () => this.port.send(node.$address), 500);
       timeout && (to = setTimeout(abort, timeout));
     });
   }
