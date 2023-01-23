@@ -8,7 +8,15 @@ export type ItemFactory<T extends Node = any> = {
 
 const $factory = Symbol('factory');
 const $items = Symbol('items');
+const $base = Symbol('base');
 const $pad = Symbol('pad');
+
+export type CollectionOptions = {
+  size: number;
+  base?: number;
+  pad?: number;
+  callable?: boolean;
+};
 
 export class Collection<
   T extends Node = any,
@@ -16,19 +24,19 @@ export class Collection<
 > extends Container<TEvents> {
   private readonly [$factory]: ItemFactory<T>;
   private readonly [$items]: T[];
+  private readonly [$base]: number;
   private readonly [$pad]?: number;
 
-  constructor(factory: ItemFactory<T>, size: number, callable?: boolean);
-  constructor(factory: ItemFactory<T>, size: number, pad: number, callable?: boolean);
-  constructor(factory: ItemFactory<T>, size: number, padOrCallable?: number | boolean, maybeCallable?: boolean) {
-    const [pad, callable] = typeof padOrCallable === 'boolean'
-      ? [undefined, padOrCallable]
-      : [padOrCallable, maybeCallable];
+  constructor(factory: ItemFactory<T>, size: number);
+  constructor(factory: ItemFactory<T>, options: CollectionOptions);
+  constructor(factory: ItemFactory<T>, sizeOrOptions: CollectionOptions | number) {
+    const options = typeof sizeOrOptions === 'number' ? { size: sizeOrOptions } : sizeOrOptions;
 
-    super(callable);
+    super(options.callable);
     this[$factory] = factory;
-    this[$items] = new Array(size);
-    this[$pad] = pad;
+    this[$items] = new Array(options.size);
+    this[$base] = options.base ?? 1;
+    this[$pad] = options.pad;
   }
 
   $get<P extends string>(prop: P): Child<this, P>;
@@ -36,7 +44,7 @@ export class Collection<
   $get(prop: string | number): any {
     if (typeof prop === 'string') {
       if (/^\d+$/.test(prop)) {
-        prop = parseInt(prop.replace(/^0+(?!$)/, '')) - 1;
+        prop = parseInt(prop.replace(/^0+(?!$)/, ''), 10) - this[$base];
       } else {
         return super.$get(prop);
       }
@@ -60,7 +68,7 @@ export class Collection<
   $set(prop: string | number, node: any): void {
     if (typeof prop === 'string') {
       if (/^\d+$/.test(prop)) {
-        prop = parseInt(prop.replace(/^0+(?!$)/, '')) - 1;
+        prop = parseInt(prop.replace(/^0+(?!$)/, '')) - this[$base];
       } else {
         return super.$set(prop, node);
       }
@@ -84,7 +92,7 @@ export class Collection<
 
   $has(prop: string | number): boolean {
     if (typeof prop === 'string' && /^\d+$/.test(prop)) {
-      prop = parseInt(prop.replace(/^0+(?!$)/, '')) - 1;
+      prop = parseInt(prop.replace(/^0+(?!$)/, '')) - this[$base];
     }
 
     return typeof prop === 'number' ? prop >= 0 && prop < this[$items].length : super.$has(prop);
@@ -92,7 +100,7 @@ export class Collection<
 
   $attach(prop: string | number, value: Node) {
     if (typeof prop === 'number') {
-      const idx = (prop + 1).toString();
+      const idx = (prop + this[$base]).toString();
       super.$attach(this[$pad] ? idx.padStart(this[$pad], '0') : idx, value);
     } else {
       super.$attach(prop, value);
