@@ -11,7 +11,7 @@ export type ContainerPropertyDecorator = {
 export type PropertyFactory = () => any;
 export type PropertyWrapper<T = any> = (property: T) => T;
 
-export function Property(target: Container, property: string): void {
+export function Property(target: any, property: string): void {
   Reflect.defineMetadata(
     'custom:known-properties',
     (Reflect.getMetadata('custom:known-properties', target) || []).concat(property),

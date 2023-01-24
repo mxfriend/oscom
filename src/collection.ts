@@ -1,4 +1,4 @@
-import { Child, Container, ContainerEvents } from './container';
+import { Container, ContainerEvents } from './container';
 import { Node } from './node';
 
 export type ItemFactory<T extends Node = any> = {
@@ -38,7 +38,6 @@ export class Collection<
     this[$pad] = options.pad;
   }
 
-  $get<P extends string>(prop: P): Child<this, P>;
   $get(prop: string): Node;
   $get(prop: number): T;
   $get(prop: string | number): any {
@@ -63,7 +62,6 @@ export class Collection<
     return value;
   }
 
-  $set<P extends string>(prop: P, node: Child<this, P>): void;
   $set(prop: string, node: Node): void;
   $set(item: number, node: T): void;
   $set(prop: string | number, node: any): void {

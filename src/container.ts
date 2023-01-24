@@ -4,13 +4,6 @@ import { Node, NodeEvents } from './node';
 import { pairs } from './utils';
 import { Value } from './values';
 
-export type ChildProp<C extends Container> = string & keyof {
-  [P in keyof C as C[P] extends Node ? P : never]: C[P];
-};
-
-export type Child<C extends Container, P extends string = ChildProp<C>> =
-  P extends ChildProp<C> ? C[P] extends Node ? C[P] : never : never;
-
 
 export interface ContainerEvents extends NodeEvents {
   attach: [child: Node, container: Container];
@@ -74,8 +67,6 @@ export abstract class Container<
     }
   }
 
-  $get<P extends string>(prop: P): Child<this, P>;
-  $get(prop: string | number): Node;
   $get(prop: string | number): Node {
     const existing = this[$data].get(prop);
 
@@ -91,8 +82,6 @@ export abstract class Container<
     return value;
   }
 
-  $set<P extends string>(prop: P, node: Child<this, P>): void;
-  $set(prop: string | number, node: Node): void;
   $set(prop: string | number, node: Node): void {
     const existing = this[$data].get(prop);
 
