@@ -2,26 +2,24 @@ import {
   OSCArgument,
   isOSCType,
   osc,
-  EventMapExtension,
-  MergeEventMap,
 } from '@mxfriend/osc';
 import { inspect } from 'util';
 import { EnumDefinition, enumNameToValue, enumValueToName } from './enums';
-import { Node } from './node';
+import { Node, NodeEvents } from './node';
 import { Scale } from './scales';
 
 
-export type ValueEvents<T = any> = {
+export interface ValueEvents<T = any> extends NodeEvents {
   'local-change': [value: T | undefined, node: Value<T>];
   'remote-change': [value: T | undefined, node: Value<T>, peer?: unknown];
-};
+}
 
 const $value = Symbol('value');
 
 export abstract class Value<
   T = any,
-  TEvents extends EventMapExtension<ValueEvents<T>> = {},
-> extends Node<MergeEventMap<ValueEvents<T>, TEvents>> {
+  TEvents extends ValueEvents<T> = ValueEvents<T>,
+> extends Node<TEvents> {
   private [$value]?: T = undefined;
 
   $get(): T | undefined {
@@ -48,9 +46,9 @@ export abstract class Value<
     return true;
   }
 
-  $handleCall(args?: OSCArgument[], peer?: unknown): OSCArgument | undefined {
-    if (args?.length) {
-      this.$fromOSC(args[0], false, peer);
+  $handleCall(peer?: unknown, arg?: OSCArgument): OSCArgument | undefined {
+    if (arg) {
+      this.$fromOSC(arg, false, peer);
       return undefined;
     } else {
       return this.$toOSC();

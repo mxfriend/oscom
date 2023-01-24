@@ -1,4 +1,3 @@
-import { EventMapExtension } from '@mxfriend/osc';
 import { Child, Container, ContainerEvents } from './container';
 import { Node } from './node';
 
@@ -19,8 +18,8 @@ export type CollectionOptions = {
 };
 
 export class Collection<
-  T extends Node = any,
-  TEvents extends EventMapExtension<ContainerEvents> = {},
+  T extends Node = Node,
+  TEvents extends ContainerEvents = ContainerEvents,
 > extends Container<TEvents> {
   private readonly [$factory]: ItemFactory<T>;
   private readonly [$items]: T[];
@@ -40,6 +39,7 @@ export class Collection<
   }
 
   $get<P extends string>(prop: P): Child<this, P>;
+  $get(prop: string): Node;
   $get(prop: number): T;
   $get(prop: string | number): any {
     if (typeof prop === 'string') {
@@ -64,6 +64,7 @@ export class Collection<
   }
 
   $set<P extends string>(prop: P, node: Child<this, P>): void;
+  $set(prop: string, node: Node): void;
   $set(item: number, node: T): void;
   $set(prop: string | number, node: any): void {
     if (typeof prop === 'string') {
@@ -107,30 +108,29 @@ export class Collection<
     }
   }
 
-  * [Symbol.iterator](): IterableIterator<Node> {
-    yield * super[Symbol.iterator]();
+  protected $getCallableProperties(): (string | number)[] {
+    const props = super.$getCallableProperties();
+    return props.length ? props : [...this[$items].keys()];
+  }
+
+  * [Symbol.iterator](): IterableIterator<T> {
     yield * this.$items();
   }
 
-  * $entries(lazy: boolean = false): IterableIterator<[string | number, Node]> {
-    yield * super.$entries(lazy);
+  $children(lazy?: boolean, keys?: false): IterableIterator<Node>;
+  $children(lazy: boolean, keys: true): IterableIterator<[string | number, Node]>;
+  * $children(lazy: boolean = false, keys: boolean = false): IterableIterator<Node | [string | number, Node]> {
+    yield * super.$children(lazy, keys as any);
+    yield * this.$items(lazy, keys as any);
+  }
 
+  $items(lazy?: boolean, keys?: false): IterableIterator<T>;
+  $items(lazy: boolean, keys: true): IterableIterator<[number, T]>;
+  * $items(lazy: boolean = false, keys: boolean = false): IterableIterator<T | [number, T]> {
     for (let i = 0; i < this[$items].length; ++i) {
-      if (!lazy || this[$items][i] !== undefined) {
-        yield [i, this.$get(i)];
+      if (!lazy || this[$items][i]) {
+        yield keys ? [i, this.$get(i)] : this.$get(i);
       }
-    }
-  }
-
-  * $keys(): IterableIterator<number> {
-    for (let i = 0; i < this[$items].length; ++i) {
-      yield i;
-    }
-  }
-
-  * $items(): IterableIterator<T> {
-    for (let i = 0; i < this[$items].length; ++i) {
-      yield this.$get(i);
     }
   }
 }

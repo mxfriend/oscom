@@ -1,4 +1,4 @@
-import { AbstractOSCPort, EventEmitter, OSCArgument, OSCMessage } from '@mxfriend/osc';
+import { AbstractOSCPort, EventEmitter, EventMap, OSCArgument, OSCMessage } from '@mxfriend/osc';
 import { Command } from './command';
 import { Container } from './container';
 import { Node } from './node';
@@ -12,15 +12,18 @@ type NodeListeners = {
   handleDetached: (address: string) => void;
 };
 
-export type DispatcherEvents = {
-  monitor: [node: Node];
-  unmonitor: [node: Node];
-};
-
 type QueryNodes<T extends [...any]> = { [i in keyof T]: Value<T[i]> };
 type QueryResult<T extends [...any]> = Promise<{ [i in keyof T]: T[i] | undefined }>;
 
-export class Dispatcher extends EventEmitter<DispatcherEvents> {
+
+export interface DispatcherEvents extends EventMap {
+  monitor: [node: Node];
+  unmonitor: [node: Node];
+}
+
+export class Dispatcher<
+  TEvents extends DispatcherEvents = DispatcherEvents,
+> extends EventEmitter<TEvents> {
   protected readonly port: AbstractOSCPort;
   private readonly listeners: Map<Node, NodeListeners> = new Map();
 
@@ -44,7 +47,7 @@ export class Dispatcher extends EventEmitter<DispatcherEvents> {
       }
 
       if (node instanceof Container) {
-        for (const child of node) {
+        for (const child of node.$children()) {
           this.add(child);
         }
       }
@@ -58,7 +61,7 @@ export class Dispatcher extends EventEmitter<DispatcherEvents> {
       }
 
       if (node instanceof Container) {
-        for (const child of node) {
+        for (const child of node.$children(true)) {
           this.remove(child);
         }
       }
@@ -82,7 +85,7 @@ export class Dispatcher extends EventEmitter<DispatcherEvents> {
         cleanup();
 
         if (!this.listeners.has(node)) {
-          node.$handleCall(message.args, peer);
+          node.$handleCall(peer, ...message.args);
         }
 
         resolve(node.$get());
@@ -113,7 +116,7 @@ export class Dispatcher extends EventEmitter<DispatcherEvents> {
 
     const listeners: NodeListeners = {
       handleCall: async (message, peer) => {
-        const response = node.$handleCall(message.args, peer);
+        const response = node.$handleCall(peer, ...message.args);
 
         if (response) {
           await this.port.send(node.$address, Array.isArray(response) ? response : [response], peer);

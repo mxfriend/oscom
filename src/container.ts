@@ -1,28 +1,31 @@
-import { EventMapExtension, MergeEventMap, OSCArgument } from '@mxfriend/osc';
-import { inspect } from 'util';
+import { OSCArgument } from '@mxfriend/osc';
 import { createProperty, getKnownProperties } from './decorators';
-import { Node } from './node';
+import { Node, NodeEvents } from './node';
+import { pairs } from './utils';
 import { Value } from './values';
 
-export type Children<C extends Container> = keyof C & keyof {
+export type ChildProp<C extends Container> = string & keyof {
   [P in keyof C as C[P] extends Node ? P : never]: C[P];
 };
 
-export type Child<C extends Container, P extends string> = P extends Children<C> ? C[P] : any;
+export type Child<C extends Container, P extends string = ChildProp<C>> =
+  P extends ChildProp<C> ? C[P] extends Node ? C[P] : never : never;
 
-export type ContainerEvents = {
+
+export interface ContainerEvents extends NodeEvents {
   attach: [child: Node, container: Container];
   detach: [child: Node, container: Container];
-};
+}
+
 
 const $callable = Symbol('callable');
 const $data = Symbol('data');
 
 export abstract class Container<
-  TEvents extends EventMapExtension<ContainerEvents> = {},
-> extends Node<MergeEventMap<ContainerEvents, TEvents>> {
+  TEvents extends ContainerEvents = ContainerEvents,
+> extends Node<TEvents> {
   private readonly [$callable]: boolean;
-  private readonly [$data]: Map<string, Node>;
+  private readonly [$data]: Map<string | number, Node>;
 
   constructor(callable: boolean = false) {
     super();
@@ -34,19 +37,19 @@ export abstract class Container<
     return this[$callable];
   }
 
-  $handleCall(args: OSCArgument[], peer?: unknown): OSCArgument[] | undefined {
+  $handleCall(peer?: unknown, ...args: OSCArgument[]): OSCArgument[] | undefined {
     if (!this[$callable]) {
       throw new Error('Node is not callable');
     }
 
-    const props = this.$getKnownProperties();
+    const props = this.$getCallableProperties();
 
     if (args.length) {
       for (let i = 0; i < args.length && i < props.length; ++i) {
         const node: any = this.$get(props[i]);
 
         if (node instanceof Value) {
-          node.$handleCall([args[i]], peer);
+          node.$handleCall(peer, args[i]);
         } else {
           break;
         }
@@ -58,7 +61,7 @@ export abstract class Container<
 
       for (const p of props) {
         const prop: any = this.$get(p);
-        const r = prop instanceof Value && prop.$handleCall();
+        const r = prop instanceof Value && prop.$handleCall(peer);
 
         if (r) {
           result.push(r);
@@ -67,12 +70,13 @@ export abstract class Container<
         }
       }
 
-      return result;
+      return result.length ? result : undefined;
     }
   }
 
   $get<P extends string>(prop: P): Child<this, P>;
-  $get(prop: string): Node {
+  $get(prop: string | number): Node;
+  $get(prop: string | number): Node {
     const existing = this[$data].get(prop);
 
     if (existing) {
@@ -81,14 +85,15 @@ export abstract class Container<
       throw new Error(`Unknown property: '${prop}'`);
     }
 
-    const value = createProperty(this, prop);
+    const value = createProperty(this, prop.toString());
     this[$data].set(prop, value);
     this.$attach(prop, value);
     return value;
   }
 
   $set<P extends string>(prop: P, node: Child<this, P>): void;
-  $set(prop: string, node: Node): void {
+  $set(prop: string | number, node: Node): void;
+  $set(prop: string | number, node: Node): void {
     const existing = this[$data].get(prop);
 
     if (existing) {
@@ -101,7 +106,7 @@ export abstract class Container<
     this.$attach(prop, node);
   }
 
-  $has(prop: string): boolean {
+  $has(prop: string | number): boolean {
     return this.$getKnownProperties().includes(prop);
   }
 
@@ -118,7 +123,7 @@ export abstract class Container<
   $attached(address: string): void {
     super.$attached(address);
 
-    for (const [prop, value] of this.$entries(true)) {
+    for (const [prop, value] of this.$children(true, true)) {
       this.$attach(prop, value);
     }
   }
@@ -126,54 +131,50 @@ export abstract class Container<
   $detached(): void {
     super.$detached();
 
-    for (const [, value] of this.$entries(true)) {
-      this.$detach(value);
+    for (const child of this.$children(true)) {
+      this.$detach(child);
     }
   }
 
   $destroy(): void {
     super.$destroy();
 
-    for (const [, value] of this.$entries(true)) {
-      value.$destroy();
+    for (const child of this.$children(true)) {
+      child.$destroy();
     }
   }
 
   $merge(node: this): void {
-    for (const [prop, value] of node.$entries(true)) {
-      const dst = this.$get(prop as any) as any;
-
-      if (value instanceof Container) {
-        dst.$merge(value);
-      } else if (value instanceof Value) {
-        dst.$set(value.$get());
+    for (const [src, dst] of pairs(node.$children(), this.$children())) {
+      if (src instanceof Container && dst instanceof Container) {
+        dst.$merge(src);
+      } else if (src instanceof Value && dst instanceof Value && src.$isSet()) {
+        dst.$set(src.$get(), true);
       }
     }
   }
 
-  $getKnownProperties(): any[] {
+  $getKnownProperties(): (string | number)[] {
     return getKnownProperties(this);
   }
 
-  [Symbol.iterator](): IterableIterator<Node> {
-    return this.$values();
+  protected $getCallableProperties(): (string | number)[] {
+    return this.$getKnownProperties();
   }
 
-  * $entries(lazy: boolean = false): IterableIterator<[string | number, Node]> {
+  $attributes(lazy?: boolean, keys?: false): IterableIterator<Node>;
+  $attributes(lazy: boolean, keys: true): IterableIterator<[string | number, Node]>;
+  * $attributes(lazy: boolean = false, keys: boolean = false): IterableIterator<Node | [string | number, Node]> {
     for (const prop of this.$getKnownProperties()) {
       if (!lazy || this[$data].has(prop)) {
-        yield [prop, this.$get(prop)];
+        yield keys ? [prop, this.$get(prop)] : this.$get(prop);
       }
     }
   }
 
-  * $values(): IterableIterator<Node> {
-    for (const prop of this.$getKnownProperties()) {
-      yield this.$get(prop);
-    }
-  }
-
-  [inspect.custom]() {
-    return Object.fromEntries(this.$entries());
+  $children(lazy?: boolean, keys?: false): IterableIterator<Node>;
+  $children(lazy: boolean, keys: true): IterableIterator<[string | number, Node]>;
+  * $children(lazy: boolean = false, keys: boolean = false): IterableIterator<Node | [string | number, Node]> {
+    yield * this.$attributes(lazy, keys as any);
   }
 }

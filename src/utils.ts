@@ -16,3 +16,12 @@ export function toDecimalPlaces(value: number, places: number, round: boolean = 
   const result = ((round ? Math.round(value * scale) : Math.trunc(value * scale)) / scale);
   return result.toFixed(places);
 }
+
+export function * pairs<T>(a: Iterable<T>, b: Iterable<T>): IterableIterator<[T, T]> {
+  const ita = a[Symbol.iterator]();
+  const itb = b[Symbol.iterator]();
+
+  for (let ra = ita.next(), rb = itb.next(); !ra.done && !rb.done; ra = ita.next(), rb = itb.next()) {
+    yield [ra.value, rb.value];
+  }
+}

@@ -1,23 +1,22 @@
 import {
   OSCArgument,
   EventEmitter,
-  EventMapExtension,
-  MergeEventMap,
   EventHandler,
+  EventMap,
 } from '@mxfriend/osc';
 
-export type NodeEvents = {
+export interface NodeEvents extends EventMap {
   attached: [address: string, node: Node];
   detached: [address: string, node: Node];
   destroy: [node: Node];
-};
+}
 
 const $address = Symbol('address');
 const $events = Symbol('events');
 
-export abstract class Node<TEvents extends EventMapExtension<NodeEvents> = {}> {
+export abstract class Node<TEvents extends NodeEvents = NodeEvents> {
+  private readonly [$events]: EventEmitter<TEvents> = new EventEmitter();
   private [$address]: string = '';
-  private readonly [$events]: EventEmitter<MergeEventMap<NodeEvents, TEvents>> = new EventEmitter();
 
   get $address(): string {
     return this[$address];
@@ -43,35 +42,23 @@ export abstract class Node<TEvents extends EventMapExtension<NodeEvents> = {}> {
     return false;
   }
 
-  $handleCall(args?: OSCArgument[], peer?: unknown): OSCArgument[] | OSCArgument | undefined {
+  $handleCall(peer?: unknown, ...args: OSCArgument[]): OSCArgument[] | OSCArgument | undefined {
     throw new Error('Node is not callable');
   }
 
-  $on<E extends string & keyof MergeEventMap<NodeEvents, TEvents>>(
-    event: E,
-    handler: EventHandler<MergeEventMap<NodeEvents, TEvents>, E>,
-  ): void {
+  $on<E extends string & keyof TEvents>(event: E, handler: EventHandler<TEvents, E>): void {
     this[$events].on(event, handler);
   }
 
-  $once<E extends string & keyof MergeEventMap<NodeEvents, TEvents>>(
-    event: E,
-    handler: EventHandler<MergeEventMap<NodeEvents, TEvents>, E>,
-  ): void {
+  $once<E extends string & keyof TEvents>(event: E, handler: EventHandler<TEvents, E>): void {
     this[$events].once(event, handler);
   }
 
-  $off<E extends string & keyof MergeEventMap<NodeEvents, TEvents>>(
-    event?: E,
-    handler?: EventHandler<MergeEventMap<NodeEvents, TEvents>, E>,
-  ): void {
+  $off<E extends string & keyof TEvents>(event?: E, handler?: EventHandler<TEvents, E>): void {
     this[$events].off(event, handler);
   }
 
-  $emit<E extends string & keyof MergeEventMap<NodeEvents, TEvents>>(
-    event: E,
-    ...args: MergeEventMap<NodeEvents, TEvents>[E]
-  ): boolean {
+  $emit<E extends string & keyof TEvents>(event: E, ...args: TEvents[E]): boolean {
     return this[$events].emit(event, ...args);
   }
 }

@@ -1,9 +1,9 @@
-import { Container } from './container';
+import { Container, ContainerEvents } from './container';
 import { Node } from './node';
 
 const $map = Symbol('map');
 
-export class Root extends Container {
+export class Root<TEvents extends ContainerEvents = ContainerEvents> extends Container<TEvents> {
   private readonly [$map]: Map<string, Node> = new Map();
 
   constructor() {
@@ -39,7 +39,7 @@ export class Root extends Container {
   private $setupContainer(container: Container): void {
     container.$on('attach', this.$handleAttach);
 
-    for (const [, node] of container.$entries(true)) {
+    for (const node of container.$children(true)) {
       this.$handleAttach(node);
     }
   }
