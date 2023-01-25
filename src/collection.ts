@@ -1,3 +1,4 @@
+import { OSCArgument } from '@mxfriend/osc';
 import { Container, ContainerEvents } from './container';
 import { Node } from './node';
 
@@ -36,6 +37,20 @@ export class Collection<
     this[$items] = new Array(options.size);
     this[$base] = options.base ?? 1;
     this[$pad] = options.pad;
+  }
+
+  get $size(): number {
+    return this[$items].length;
+  }
+
+  $handleCall(peer?: unknown, ...args: OSCArgument[]): OSCArgument[] | undefined {
+    if (!this.$callable || this.$getCallableProperties().length) {
+      return super.$handleCall(peer, ...args);
+    }
+
+    const props = [...this[$items].keys()];
+    const [results] = this.$applyToValues(props, args, (node, arg) => node.$handleCall(peer, arg));
+    return results;
   }
 
   $get(prop: string): Node;
@@ -104,11 +119,6 @@ export class Collection<
     } else {
       super.$attach(prop, value);
     }
-  }
-
-  protected $getCallableProperties(): (string | number)[] {
-    const props = super.$getCallableProperties();
-    return props.length ? props : [...this[$items].keys()];
   }
 
   * [Symbol.iterator](): IterableIterator<T> {

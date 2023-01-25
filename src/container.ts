@@ -36,35 +36,32 @@ export abstract class Container<
     }
 
     const props = this.$getCallableProperties();
+    const [results] = this.$applyToValues(props, args, (node, arg) => node.$handleCall(peer, arg));
+    return results;
+  }
 
-    if (args.length) {
-      for (let i = 0; i < args.length && i < props.length; ++i) {
-        const node: any = this.$get(props[i]);
+  $applyToValues<A, R>(
+    props: (string | number)[],
+    args: A[],
+    cb: (node: Value, arg?: A) => R | undefined,
+  ): [results: R[] | undefined, unused: (string | number)[]] {
+    const results: R[] | undefined = args.length ? undefined : [];
+    const n = args.length ? Math.min(args.length, props.length) : props.length;
+    let i = 0;
 
-        if (node instanceof Value) {
-          node.$handleCall(peer, args[i]);
-        } else {
-          break;
-        }
+    for (; i < n; ++i) {
+      const node = this.$get(props[i]);
+      const value = node instanceof Value;
+      const res = value ? cb(node, args[i]) : undefined;
+
+      if (results && res !== undefined) {
+        results.push(res);
+      } else if (!value || results) {
+        break;
       }
-
-      return undefined;
-    } else {
-      const result: OSCArgument[] = [];
-
-      for (const p of props) {
-        const prop: any = this.$get(p);
-        const r = prop instanceof Value && prop.$handleCall(peer);
-
-        if (r) {
-          result.push(r);
-        } else {
-          break;
-        }
-      }
-
-      return result.length ? result : undefined;
     }
+
+    return [results, props.slice(i)];
   }
 
   $get(prop: string | number): Node {
