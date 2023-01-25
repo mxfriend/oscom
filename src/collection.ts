@@ -125,13 +125,6 @@ export class Collection<
     yield * this.$items();
   }
 
-  $children(lazy?: boolean, keys?: false): IterableIterator<Node>;
-  $children(lazy: boolean, keys: true): IterableIterator<[string | number, Node]>;
-  * $children(lazy: boolean = false, keys: boolean = false): IterableIterator<Node | [string | number, Node]> {
-    yield * super.$children(lazy, keys as any);
-    yield * this.$items(lazy, keys as any);
-  }
-
   $items(lazy?: boolean, keys?: false): IterableIterator<T>;
   $items(lazy: boolean, keys: true): IterableIterator<[number, T]>;
   * $items(lazy: boolean = false, keys: boolean = false): IterableIterator<T | [number, T]> {
