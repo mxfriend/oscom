@@ -115,10 +115,10 @@ export class Collection<
   $attach(prop: string | number, value: Node) {
     if (typeof prop === 'number') {
       const idx = (prop + this[$base]).toString();
-      super.$attach(this[$pad] ? idx.padStart(this[$pad], '0') : idx, value);
-    } else {
-      super.$attach(prop, value);
+      prop = this[$pad] ? idx.padStart(this[$pad], '0') : idx;
     }
+
+    super.$attach(prop, value);
   }
 
   * [Symbol.iterator](): IterableIterator<T> {
@@ -133,5 +133,12 @@ export class Collection<
         yield keys ? [i, this.$get(i)] : this.$get(i);
       }
     }
+  }
+
+  $children(lazy?: boolean, keys?: false): IterableIterator<Node>;
+  $children(lazy: boolean, keys: true): IterableIterator<[string | number, Node]>;
+  * $children(lazy: boolean = false, keys: boolean = false): IterableIterator<Node | [string | number, Node]> {
+    yield * super.$children(lazy, keys as any);
+    yield * this.$items(lazy, keys as any);
   }
 }

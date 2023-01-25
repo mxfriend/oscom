@@ -39,8 +39,8 @@ export class Root<TEvents extends ContainerEvents = ContainerEvents> extends Con
   private $setupContainer(container: Container): void {
     container.$on('attach', this.$handleAttach);
 
-    for (const node of container.$children(true)) {
-      this.$handleAttach(node);
+    for (const child of container.$children(true)) {
+      this.$handleAttach(child);
     }
   }
 
