@@ -15,7 +15,7 @@ export abstract class Command<
     return true;
   }
 
-  public $handleCall(peer?: unknown, ...args: OSCArgument[]): undefined {
+  public $handleCall(peer?: unknown, ...args: OSCArgument[]): OSCArgument[] | OSCArgument | undefined {
     this.$emit('remote-call', args, this, peer);
     return undefined;
   }
