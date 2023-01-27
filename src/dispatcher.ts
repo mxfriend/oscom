@@ -1,4 +1,11 @@
-import { AbstractOSCPort, EventEmitter, EventMap, OSCArgument, OSCMessage } from '@mxfriend/osc';
+import {
+  AbstractOSCPort,
+  AnyEventHandler,
+  EventEmitter,
+  EventMap,
+  OSCArgument,
+  OSCMessage,
+} from '@mxfriend/osc';
 import { Command } from './command';
 import { Container } from './container';
 import { Node } from './node';
@@ -6,15 +13,15 @@ import { Value } from './values';
 
 type NodeListeners = {
   handleCall: (message: OSCMessage, peer?: unknown) => void;
-  handleLocalChange?: (value: unknown, node: Value<unknown>) => void;
-  handleLocalCall?: (args?: OSCArgument[]) => void;
   handleAttached: (address: string) => void;
   handleDetached: (address: string) => void;
+  map: NodeListenerMap;
 };
+
+export type NodeListenerMap = Set<[string, AnyEventHandler]>;
 
 type QueryNodes<T extends [...any]> = { [i in keyof T]: Value<T[i]> };
 type QueryResult<T extends [...any]> = Promise<{ [i in keyof T]: T[i] | undefined }>;
-
 
 export interface DispatcherEvents extends EventMap {
   monitor: [node: Node];
@@ -125,40 +132,22 @@ export class Dispatcher<
       handleAttached: (address) => {
         this.port.subscribe(address, listeners.handleCall);
 
-        if (node instanceof Value) {
-          node.$on('local-change', listeners.handleLocalChange!);
-        } else if (node instanceof Command) {
-          node.$on('local-call', listeners.handleLocalCall!);
+        for (const [event, handler] of listeners.map) {
+          node.$on(event, handler);
         }
       },
       handleDetached: (address) => {
         this.port.unsubscribe(address, listeners.handleCall);
 
-        if (node instanceof Value) {
-          node.$off('local-change', listeners.handleLocalChange);
-        } else if (node instanceof Command) {
-          node.$off('local-call', listeners.handleLocalCall);
+        for (const [event, handler] of listeners.map) {
+          node.$off(event, handler);
         }
       },
+      map: new Set(this.createNodeListeners(node)),
     };
 
     if (node.$address) {
-      this.port.subscribe(node.$address, listeners.handleCall);
-
-      if (node instanceof Value) {
-        listeners.handleLocalChange = async (_, node) => {
-          const value = node.$toOSC();
-          value && node.$address && await this.port.send(node.$address, [value]);
-        };
-
-        node.$on('local-change', listeners.handleLocalChange);
-      } else if (node instanceof Command) {
-        listeners.handleLocalCall = async (args) => {
-          node.$address && await this.port.send(node.$address, args);
-        };
-
-        node.$on('local-call', listeners.handleLocalCall);
-      }
+      listeners.handleAttached(node.$address);
     }
 
     node.$on('attached', listeners.handleAttached);
@@ -188,5 +177,18 @@ export class Dispatcher<
     }
 
     this.emit('unmonitor', node);
+  }
+
+  protected * createNodeListeners(node: Node): IterableIterator<[string, AnyEventHandler]> {
+    if (node instanceof Value) {
+      yield ['local-change', async () => {
+        const value = node.$toOSC();
+        value && node.$address && await this.port.send(node.$address, [value]);
+      }];
+    } else if (node instanceof Command) {
+      yield ['local-call', async (args?: OSCArgument[]) => {
+        node.$address && await this.port.send(node.$address, args);
+      }];
+    }
   }
 }
