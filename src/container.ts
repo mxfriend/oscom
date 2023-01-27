@@ -97,7 +97,7 @@ export abstract class Container<
   }
 
   protected $attach(prop: string | number, node: Node): void {
-    node.$attached(`${this.$address}/${prop}`);
+    node.$attached(this, `${this.$address}/${prop}`);
     this.$emit('attach', node, this);
   }
 
@@ -106,8 +106,8 @@ export abstract class Container<
     this.$emit('detach', node, this);
   }
 
-  $attached(address: string): void {
-    super.$attached(address);
+  $attached(parent: Container, address: string): void {
+    super.$attached(parent, address);
 
     for (const [prop, value] of this.$children(true, true)) {
       this.$attach(prop, value);

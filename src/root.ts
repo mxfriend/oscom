@@ -53,7 +53,7 @@ export class Root<TEvents extends ContainerEvents = ContainerEvents> extends Con
     }
   }
 
-  private $handleDetached(address: string, node: Node): void {
+  private $handleDetached(parent: Container, address: string, node: Node): void {
     this[$map].delete(address);
     node.$off('detached', this.$handleDetached);
 

@@ -11,11 +11,12 @@ import { Container } from './container';
 import { Node } from './node';
 import { Value } from './values';
 
-type NodeListeners = {
+type NodeData = {
+  keys: Set<symbol>;
   handleCall: (message: OSCMessage, peer?: unknown) => void;
-  handleAttached: (address: string) => void;
-  handleDetached: (address: string) => void;
-  map: NodeListenerMap;
+  handleAttached: (parent: Container, address: string) => void;
+  handleDetached: (parent: Container, address: string) => void;
+  listeners: NodeListenerMap;
 };
 
 export type NodeListenerMap = Set<[string, AnyEventHandler]>;
@@ -32,44 +33,44 @@ export class Dispatcher<
   TEvents extends DispatcherEvents = DispatcherEvents,
 > extends EventEmitter<TEvents> {
   protected readonly port: AbstractOSCPort;
-  private readonly listeners: Map<Node, NodeListeners> = new Map();
+  private readonly nodes: Map<Node, NodeData> = new Map();
 
   constructor(port: AbstractOSCPort) {
     super();
     this.port = port;
   }
 
-  public async addAndQuery<T>(node: Value<T>): Promise<T>;
-  public async addAndQuery<T extends [any, any, ...any]>(...nodes: QueryNodes<T>): QueryResult<T>;
-  public async addAndQuery(...nodes: Value[]): Promise<any[]>;
-  public async addAndQuery(...nodes: Value[]): Promise<any | any[]> {
-    this.add(...nodes);
+  public async addAndQuery<T>(key: symbol, node: Value<T>): Promise<T>;
+  public async addAndQuery<T extends [any, any, ...any]>(key: symbol, ...nodes: QueryNodes<T>): QueryResult<T>;
+  public async addAndQuery(key: symbol, ...nodes: Value[]): Promise<any[]>;
+  public async addAndQuery(key: symbol, ...nodes: Value[]): Promise<any | any[]> {
+    this.add(key, ...nodes);
     return this.query(...nodes);
   }
 
-  public add(...nodes: Node[]): void {
+  public add(key: symbol, ...nodes: Node[]): void {
     for (const node of nodes) {
       if (node.$callable) {
-        this.monitor(node);
+        this.monitor(node, key);
       }
 
       if (node instanceof Container) {
         for (const child of node.$children()) {
-          this.add(child);
+          this.add(key, child);
         }
       }
     }
   }
 
-  public remove(...nodes: Node[]): void {
+  public remove(key: symbol, ...nodes: Node[]): void {
     for (const node of nodes) {
       if (node.$callable) {
-        this.unmonitor(node);
+        this.unmonitor(node, key);
       }
 
       if (node instanceof Container) {
         for (const child of node.$children(true)) {
-          this.remove(child);
+          this.remove(key, child);
         }
       }
     }
@@ -91,7 +92,7 @@ export class Dispatcher<
       const done = (message: OSCMessage, peer?: unknown) => {
         cleanup();
 
-        if (!this.listeners.has(node)) {
+        if (!this.nodes.has(node)) {
           node.$handleCall(peer, ...message.args);
         }
 
@@ -116,12 +117,16 @@ export class Dispatcher<
     });
   }
 
-  private monitor(node: Node): void {
-    if (this.listeners.has(node)) {
+  private monitor(node: Node, key: symbol): void {
+    const existing = this.nodes.get(node);
+
+    if (existing) {
+      existing.keys.add(key);
       return;
     }
 
-    const listeners: NodeListeners = {
+    const data: NodeData = {
+      keys: new Set([key]),
       handleCall: async (message, peer) => {
         const response = node.$handleCall(peer, ...message.args);
 
@@ -129,51 +134,59 @@ export class Dispatcher<
           await this.port.send(node.$address, Array.isArray(response) ? response : [response], peer);
         }
       },
-      handleAttached: (address) => {
-        this.port.subscribe(address, listeners.handleCall);
+      handleAttached: (parent, address) => {
+        this.port.subscribe(address, data.handleCall);
 
-        for (const [event, handler] of listeners.map) {
+        for (const [event, handler] of data.listeners) {
           node.$on(event, handler);
         }
       },
-      handleDetached: (address) => {
-        this.port.unsubscribe(address, listeners.handleCall);
+      handleDetached: (parent, address) => {
+        this.port.unsubscribe(address, data.handleCall);
 
-        for (const [event, handler] of listeners.map) {
+        for (const [event, handler] of data.listeners) {
           node.$off(event, handler);
         }
       },
-      map: new Set(this.createNodeListeners(node)),
+      listeners: new Set(this.createNodeListeners(node)),
     };
 
-    if (node.$address) {
-      listeners.handleAttached(node.$address);
+    if (node.$parent) {
+      data.handleAttached(node.$parent, node.$address);
     }
 
-    node.$on('attached', listeners.handleAttached);
-    node.$on('detached', listeners.handleDetached);
+    node.$on('attached', data.handleAttached);
+    node.$on('detached', data.handleDetached);
 
     node.$on('destroy', () => {
       this.unmonitor(node);
     });
 
-    this.listeners.set(node, listeners);
+    this.nodes.set(node, data);
     this.emit('monitor', node);
   }
 
-  private unmonitor(node: Node): void {
-    const listeners = this.listeners.get(node);
+  private unmonitor(node: Node, key?: symbol): void {
+    const data = this.nodes.get(node);
 
-    if (!listeners) {
+    if (!data) {
       return;
     }
 
-    node.$off('attached', listeners.handleAttached);
-    node.$off('detached', listeners.handleDetached);
-    this.listeners.delete(node);
+    if (key !== undefined) {
+      data.keys.delete(key);
 
-    if (node.$address) {
-      listeners.handleDetached(node.$address);
+      if (data.keys.size) {
+        return;
+      }
+    }
+
+    node.$off('attached', data.handleAttached);
+    node.$off('detached', data.handleDetached);
+    this.nodes.delete(node);
+
+    if (node.$parent) {
+      data.handleDetached(node.$parent, node.$address);
     }
 
     this.emit('unmonitor', node);

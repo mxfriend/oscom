@@ -4,33 +4,43 @@ import {
   EventHandler,
   EventMap,
 } from '@mxfriend/osc';
+import { Container } from './container';
 
 export interface NodeEvents extends EventMap {
-  attached: [address: string, node: Node];
-  detached: [address: string, node: Node];
+  attached: [parent: Container, address: string, node: Node];
+  detached: [parent: Container, address: string, node: Node];
   destroy: [node: Node];
 }
 
+const $parent = Symbol('parent');
 const $address = Symbol('address');
 const $events = Symbol('events');
 
 export abstract class Node<TEvents extends NodeEvents = NodeEvents> {
   private readonly [$events]: EventEmitter<TEvents> = new EventEmitter();
+  private [$parent]?: Container;
   private [$address]: string = '';
+
+  get $parent(): Container | undefined {
+    return this[$parent];
+  }
 
   get $address(): string {
     return this[$address];
   }
 
-  $attached(address: string): void {
+  $attached(parent: Container, address: string): void {
+    this[$parent] = parent;
     this[$address] = address;
-    this.$emit('attached', address, this);
+    this.$emit('attached', parent, address, this);
   }
 
   $detached(): void {
+    const parent = this[$parent];
     const address = this[$address];
+    this[$parent] = undefined;
     this[$address] = '';
-    this.$emit('detached', address, this);
+    parent && this.$emit('detached', parent, address, this);
   }
 
   $destroy(): void {
