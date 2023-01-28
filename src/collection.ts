@@ -112,6 +112,10 @@ export class Collection<
     return typeof prop === 'number' ? prop >= 0 && prop < this[$items].length : super.$has(prop);
   }
 
+  $indexOf(node: Node): number {
+    return this[$items].indexOf(node as T);
+  }
+
   $attach(prop: string | number, value: Node) {
     if (typeof prop === 'number') {
       const idx = (prop + this[$base]).toString();
