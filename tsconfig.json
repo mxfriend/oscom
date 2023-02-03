@@ -12,6 +12,7 @@
     "noImplicitAny": true,
     "noUnusedLocals": true,
     "noEmitOnError": true,
+    "strictPropertyInitialization": false,
     "strictNullChecks": true,
     "outDir": "dist"
   },

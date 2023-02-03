@@ -11,12 +11,35 @@ export type ContainerPropertyDecorator = {
 export type PropertyFactory = () => any;
 export type PropertyWrapper<T = any> = (property: T) => T;
 
+function adjustKnownProperties(target: any, cb: (props: string[]) => string[]): void {
+  const props = Reflect.getMetadata('custom:known-properties', target) ?? [];
+  Reflect.defineMetadata('custom:known-properties', cb(props), target);
+}
+
+function injectProperty(target: any, property: string, sibling: string, offset: number = 0): void {
+  adjustKnownProperties(target, ([...props]) => {
+    const idxOld = props.indexOf(property);
+    const idxNew = props.indexOf(sibling);
+    idxOld > -1 && props.splice(idxOld, 1);
+    idxNew > -1 ? props.splice(idxNew + offset, 0, property) : props.push(property);
+    return props;
+  });
+}
+
+export function Before(sibling: string): ContainerPropertyDecorator {
+  return (target, property) => {
+    injectProperty(target, property, sibling);
+  };
+}
+
+export function After(sibling: string): ContainerPropertyDecorator {
+  return (target, property) => {
+    injectProperty(target, property, sibling, 1);
+  };
+}
+
 export function Property(target: any, property: string): void {
-  Reflect.defineMetadata(
-    'custom:known-properties',
-    (Reflect.getMetadata('custom:known-properties', target) || []).concat(property),
-    target
-  );
+  adjustKnownProperties(target, (props) => props.concat(property));
 
   Object.defineProperty(target, property, {
     get(): any {
