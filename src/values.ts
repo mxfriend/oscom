@@ -1,9 +1,4 @@
-import {
-  OSCArgument,
-  isOSCType,
-  osc,
-} from '@mxfriend/osc';
-import { inspect } from 'util';
+import { OSCArgument, isOSCType, osc } from '@mxfriend/osc';
 import { EnumDefinition, enumNameToValue, enumValueToName } from './enums';
 import { Node, NodeEvents } from './node';
 import { Scale } from './scales';
@@ -57,14 +52,6 @@ export abstract class Value<
 
   abstract $fromOSC(arg: OSCArgument, local?: boolean, peer?: unknown): void;
   abstract $toOSC(): OSCArgument | undefined;
-
-  [inspect.custom]() {
-    if (this[$value] === undefined) {
-      return 'not set';
-    }
-
-    return `${this[$value]}`;
-  }
 }
 
 const $type = Symbol('type');
@@ -133,17 +120,6 @@ export class ScaledValue extends FloatValue {
     const value = this.$get();
     return value === undefined ? undefined : this[$scale].rawToValue(value);
   }
-
-  [inspect.custom]() {
-    const raw = this.$get();
-    const value = this.$toValue();
-
-    if (raw === undefined) {
-      return 'not set';
-    }
-
-    return `${raw} (${value})`;
-  }
 }
 
 const $def = Symbol('def');
@@ -175,16 +151,6 @@ export class EnumValue<T extends number> extends Value<T> {
 
   $toOSC(): OSCArgument | undefined {
     return osc.optional.int(this.$get());
-  }
-
-  [inspect.custom]() {
-    const value = this.$get();
-
-    if (value === undefined) {
-      return 'not set';
-    }
-
-    return `${value} (${enumValueToName(this[$def], value)})`;
   }
 }
 
