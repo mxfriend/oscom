@@ -1,4 +1,4 @@
-import { OSCArgument, isOSCType, osc } from '@mxfriend/osc';
+import { OSCArgument, osc, OSCInt, OSCFloat } from '@mxfriend/osc';
 import { EnumDefinition, enumNameToValue, enumValueToName } from './enums';
 import { Node, NodeEvents } from './node';
 import { Scale } from './scales';
@@ -55,15 +55,18 @@ export abstract class Value<
 }
 
 const $type = Symbol('type');
+const $isValidType = Symbol('isValidType');
 const $toOSC = Symbol('toOSC');
 
 export abstract class NumericValue extends Value<number> {
   private readonly [$type]: 'i' | 'f';
+  private readonly [$isValidType]: (value: OSCArgument) => value is (OSCInt | OSCFloat);
   private readonly [$toOSC]: (value?: number) => OSCArgument | undefined;
 
   protected constructor(type: 'i' | 'f') {
     super();
     this[$type] = type;
+    this[$isValidType] = type === 'i' ? osc.is.int : osc.is.float;
     this[$toOSC] = type === 'i' ? osc.optional.int : osc.optional.float;
   }
 
@@ -72,7 +75,7 @@ export abstract class NumericValue extends Value<number> {
   }
 
   $fromOSC(arg: OSCArgument, local: boolean = false, peer?: unknown): void {
-    if (isOSCType(arg, this[$type])) {
+    if (this[$isValidType](arg)) {
       this.$set(arg.value, local, peer);
     }
   }
@@ -109,7 +112,7 @@ export class ScaledValue extends FloatValue {
   }
 
   $fromOSC(arg: OSCArgument, local: boolean = false, peer?: unknown) {
-    if (isOSCType(arg, 'i')) {
+    if (osc.is.int(arg)) {
       this.$set(this[$scale].valueToRaw(arg.value), local, peer);
     } else {
       super.$fromOSC(arg, local);
@@ -137,9 +140,9 @@ export class EnumValue<T extends number> extends Value<T> {
   }
 
   $fromOSC(arg: OSCArgument, local: boolean = false, peer?: unknown): void {
-    if (isOSCType(arg, 's')) {
+    if (osc.is.string(arg)) {
       this.$set(enumNameToValue(this[$def], arg.value) as T, local, peer);
-    } else if (isOSCType(arg, 'i')) {
+    } else if (osc.is.int(arg)) {
       this.$set(arg.value as T, local);
     }
   }
@@ -156,12 +159,24 @@ export class EnumValue<T extends number> extends Value<T> {
 
 export class StringValue extends Value<string> {
   $fromOSC(arg: OSCArgument, local: boolean = false, peer?: unknown): void {
-    if (isOSCType(arg, 's')) {
+    if (osc.is.string(arg)) {
       this.$set(arg.value, local, peer);
     }
   }
 
   $toOSC(): OSCArgument | undefined {
     return osc.optional.string(this.$get());
+  }
+}
+
+export class BooleanValue extends Value<boolean> {
+  $fromOSC(arg: OSCArgument, local: boolean = false, peer?: unknown): void {
+    if (osc.is.bool(arg)) {
+      this.$set(arg.value, local, peer);
+    }
+  }
+
+  $toOSC(): OSCArgument | undefined {
+    return osc.optional.bool(this.$get());
   }
 }
