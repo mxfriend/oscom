@@ -2,7 +2,7 @@ import { EnumDefinition } from './enums';
 import { Container } from './container';
 import { FactoryCache } from './factoryCache';
 import { LinearScale } from './scales';
-import { EnumValue, ScaledValue } from './values';
+import { EnumValue, ScaledValue, Value } from './values';
 
 export type ContainerPropertyDecorator = {
   (target: Container, property: string): void;
@@ -38,7 +38,7 @@ export function After(sibling: string): ContainerPropertyDecorator {
   };
 }
 
-export function Property(target: any, property: string): void {
+export function Property(target: Container, property: string): void {
   adjustKnownProperties(target, (props) => props.concat(property));
 
   Object.defineProperty(target, property, {
@@ -74,6 +74,10 @@ export function createFactoryWrapper(wrapper: PropertyWrapper): ContainerPropert
     const factory = getPropertyFactory(target, property);
     const wrapped = () => wrapper(factory());
     Reflect.defineMetadata('custom:factory', wrapped, target, property);
+
+    if (!getKnownProperties(target).includes(property)) {
+      Property(target, property);
+    }
   };
 }
 
@@ -103,3 +107,13 @@ export function Linear(
 export function Enum(def: EnumDefinition): ContainerPropertyDecorator {
   return createFactoryDecorator(() => new EnumValue(def));
 }
+
+export const Nullable = createFactoryWrapper(<V extends Value<T>, T>(value: V): V => {
+  value.$nullable = true;
+  return value;
+});
+
+export const Echo = createFactoryWrapper(<V extends Value<T>, T>(value: V): V => {
+  value.$echo = true;
+  return value;
+});

@@ -1,4 +1,4 @@
-import { After, Before, Container, Node, Property } from '../src';
+import { After, Before, Container, Node, Property, Nullable, Echo, StringValue } from '../src';
 
 class TestNode extends Node {}
 
@@ -27,6 +27,11 @@ class TestInjectAfterContainer extends TestContainer {
 
 class TestGrandchildContainerWithCustomOrderInParent extends TestInjectBeforeContainer {
   @Property test4: TestNode;
+}
+
+class TestValueContainer extends Container {
+  @Nullable nullableStr: StringValue;
+  @Echo echoStr: StringValue;
 }
 
 
@@ -64,4 +69,10 @@ test('descendant property order can be changed by decorators', () => {
 test('manual property order is preserved even in descendant classes', () => {
   const container = new TestGrandchildContainerWithCustomOrderInParent();
   expect(container.$getKnownProperties()).toEqual(['test1', 'test3', 'test2', 'test4']);
+});
+
+test('values can be nullable & always echo when set', () => {
+  const container = new TestValueContainer();
+  expect(container.nullableStr.$nullable).toBeTruthy();
+  expect(container.echoStr.$echo).toBeTruthy();
 });

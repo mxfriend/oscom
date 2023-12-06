@@ -10,12 +10,16 @@ export interface ValueEvents<T = any> extends NodeEvents {
 }
 
 const $value = Symbol('value');
+const $nullable = Symbol('nullable');
+const $echo = Symbol('echo');
 
 export abstract class Value<
   T = any,
   TEvents extends ValueEvents<T> = ValueEvents<T>,
 > extends Node<TEvents> {
   private [$value]?: T = undefined;
+  private [$nullable]: boolean = false;
+  private [$echo]: boolean = false;
 
   $get(): T | undefined {
     return this[$value];
@@ -41,17 +45,40 @@ export abstract class Value<
     return true;
   }
 
+  get $nullable(): boolean {
+    return this[$nullable];
+  }
+
+  set $nullable(nullable: boolean) {
+    this[$nullable] = nullable;
+  }
+
+  get $echo(): boolean {
+    return this[$echo];
+  }
+
+  set $echo(echo: boolean) {
+    this[$echo] = echo;
+  }
+
   $handleCall(peer?: unknown, arg?: OSCArgument): OSCArgument | undefined {
     if (arg) {
       this.$fromOSC(arg, false, peer);
-      return undefined;
+      return this[$echo] ? this.$toOSC() : undefined;
     } else {
       return this.$toOSC();
     }
   }
 
-  abstract $fromOSC(arg: OSCArgument, local?: boolean, peer?: unknown): void;
-  abstract $toOSC(): OSCArgument | undefined;
+  $fromOSC(arg: OSCArgument, local?: boolean, peer?: unknown): void {
+    if (this[$nullable] && osc.is.null(arg)) {
+      this.$set(undefined, local, peer);
+    }
+  }
+
+  $toOSC(): OSCArgument | undefined {
+    return this[$nullable] && this.$get() === undefined ? osc.null() : undefined;
+  }
 }
 
 const $type = Symbol('type');
@@ -77,11 +104,13 @@ export abstract class NumericValue extends Value<number> {
   $fromOSC(arg: OSCArgument, local: boolean = false, peer?: unknown): void {
     if (this[$isValidType](arg)) {
       this.$set(arg.value, local, peer);
+    } else {
+      super.$fromOSC(arg, local, peer);
     }
   }
 
   $toOSC(): OSCArgument | undefined {
-    return this[$toOSC](this.$get());
+    return super.$toOSC() ?? this[$toOSC](this.$get());
   }
 }
 
@@ -107,8 +136,8 @@ export class ScaledValue extends FloatValue {
     this[$scale] = scale;
   }
 
-  $fromValue(value: number, local: boolean = true): void {
-    this.$set(this[$scale].valueToRaw(value), local);
+  $fromValue(value?: number, local: boolean = true): void {
+    this.$set(value === undefined ? undefined : this[$scale].valueToRaw(value), local);
   }
 
   $fromOSC(arg: OSCArgument, local: boolean = false, peer?: unknown) {
@@ -135,8 +164,8 @@ export class EnumValue<T extends number> extends Value<T> {
     this[$def] = def;
   }
 
-  $fromValue(value: string, local: boolean = true): void {
-    this.$set(enumNameToValue(this[$def], value) as T, local);
+  $fromValue(value?: string, local: boolean = true): void {
+    this.$set(value === undefined ? undefined : enumNameToValue(this[$def], value) as T, local);
   }
 
   $fromOSC(arg: OSCArgument, local: boolean = false, peer?: unknown): void {
@@ -144,6 +173,8 @@ export class EnumValue<T extends number> extends Value<T> {
       this.$set(enumNameToValue(this[$def], arg.value) as T, local, peer);
     } else if (osc.is.int(arg)) {
       this.$set(arg.value as T, local);
+    } else {
+      super.$fromOSC(arg, local, peer);
     }
   }
 
@@ -153,7 +184,7 @@ export class EnumValue<T extends number> extends Value<T> {
   }
 
   $toOSC(): OSCArgument | undefined {
-    return osc.optional.int(this.$get());
+    return super.$toOSC() ?? osc.optional.int(this.$get());
   }
 }
 
@@ -161,11 +192,13 @@ export class StringValue extends Value<string> {
   $fromOSC(arg: OSCArgument, local: boolean = false, peer?: unknown): void {
     if (osc.is.string(arg)) {
       this.$set(arg.value, local, peer);
+    } else {
+      super.$fromOSC(arg, local, peer);
     }
   }
 
   $toOSC(): OSCArgument | undefined {
-    return osc.optional.string(this.$get());
+    return super.$toOSC() ?? osc.optional.string(this.$get());
   }
 }
 
@@ -173,10 +206,12 @@ export class BooleanValue extends Value<boolean> {
   $fromOSC(arg: OSCArgument, local: boolean = false, peer?: unknown): void {
     if (osc.is.bool(arg)) {
       this.$set(arg.value, local, peer);
+    } else {
+      super.$fromOSC(arg, local, peer);
     }
   }
 
   $toOSC(): OSCArgument | undefined {
-    return osc.optional.bool(this.$get());
+    return super.$toOSC() ?? osc.optional.bool(this.$get());
   }
 }
