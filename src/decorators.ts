@@ -2,7 +2,7 @@ import { EnumDefinition } from './enums';
 import { Container } from './container';
 import { FactoryCache } from './factoryCache';
 import { LinearScale } from './scales';
-import { EnumValue, ScaledValue, Value } from './values';
+import { EnumValue, ScaledValue, Value, ValueFilter } from './values';
 
 export type ContainerPropertyDecorator = {
   (target: Container, property: string): void;
@@ -117,3 +117,37 @@ export const Echo = createFactoryWrapper(<V extends Value<T>, T>(value: V): V =>
   value.$echo = true;
   return value;
 });
+
+export function Default<T>(value: T) {
+  return createFactoryWrapper(<V extends Value<T>>(node: V): V => {
+    node.$set(value);
+    return node;
+  });
+}
+
+export function Filter<T>(filter: ValueFilter<T>) {
+  return createFactoryWrapper(<V extends Value<T>>(value: V): V => {
+    value.$appendFilter(filter);
+    return value;
+  });
+}
+
+export function MaxLength(length: number) {
+  return Filter((v?: string) => v === undefined ? v : v.slice(0, length));
+}
+
+export function Min(min: number) {
+  return Filter((v?: number) => v === undefined ? v : Math.max(min, v));
+}
+
+export function Max(max: number) {
+  return Filter((v?: number) => v === undefined ? v : Math.min(max, v));
+}
+
+export function Clamp(min: number, max: number) {
+  return Filter((v?: number) => v === undefined ? v : Math.max(min, Math.min(max, v)));
+}
+
+export function Step(step: number) {
+  return Filter((v?: number) => v === undefined ? v : Math.round(v / step) * step);
+}

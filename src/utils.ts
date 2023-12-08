@@ -1,3 +1,7 @@
+import { Container } from './container';
+import { Node } from './node';
+import { Value } from './values';
+
 export function toSignificantDigits(value: number, digits: number, round: boolean = false): string {
   if (value > -10 && value < 10) {
     return toDecimalPlaces(value, digits - 1, round);
@@ -23,5 +27,15 @@ export function * pairs<T>(a: Iterable<T>, b: Iterable<T>): IterableIterator<[T,
 
   for (let ra = ita.next(), rb = itb.next(); !ra.done && !rb.done; ra = ita.next(), rb = itb.next()) {
     yield [ra.value, rb.value];
+  }
+}
+
+export function walkValues(node: Node, callback: (value: Value) => void): void {
+  if (node instanceof Container) {
+    for (const child of node.$children()) {
+      walkValues(child, callback);
+    }
+  } else if (node instanceof Value) {
+    callback(node);
   }
 }

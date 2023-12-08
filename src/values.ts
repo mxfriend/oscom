@@ -9,9 +9,13 @@ export interface ValueEvents<T = any> extends NodeEvents {
   'remote-change': [value: T | undefined, node: Value<T>, peer?: unknown];
 }
 
+export type ValueFilter<T> = (value?: T) => T | undefined | null;
+
 const $value = Symbol('value');
 const $nullable = Symbol('nullable');
 const $echo = Symbol('echo');
+const $filter = Symbol('filter');
+const $local = Symbol('local');
 
 export abstract class Value<
   T = any,
@@ -20,12 +24,28 @@ export abstract class Value<
   private [$value]?: T = undefined;
   private [$nullable]: boolean = false;
   private [$echo]: boolean = false;
+  private [$local]?: boolean;
+  private [$filter]?: ValueFilter<T>;
 
   $get(): T | undefined {
     return this[$value];
   }
 
   $set(value: T | undefined, local: boolean = true, peer?: unknown): void {
+    if (this[$local] !== undefined && this[$local] !== local) {
+      return;
+    }
+
+    if (this[$filter]) {
+      const filtered = this[$filter](value);
+
+      if (filtered === null) {
+        return;
+      }
+
+      value = filtered;
+    }
+
     if (value !== this[$value]) {
       this[$value] = value;
 
@@ -59,6 +79,44 @@ export abstract class Value<
 
   set $echo(echo: boolean) {
     this[$echo] = echo;
+  }
+
+  get $local(): boolean | undefined {
+    return this[$local];
+  }
+
+  set $local(local: boolean | undefined) {
+    this[$local] = local;
+  }
+
+  set $filter(filter: ValueFilter<T> | undefined) {
+    this[$filter] = filter;
+  }
+
+  $prependFilter(filter: ValueFilter<T>) {
+    if (!this[$filter]) {
+      this[$filter] = filter;
+    } else {
+      const next = this[$filter];
+
+      this[$filter] = (v) => {
+        const vf = filter(v);
+        return vf === null ? vf : next(vf);
+      };
+    }
+  }
+
+  $appendFilter(filter: ValueFilter<T>) {
+    if (!this[$filter]) {
+      this[$filter] = filter;
+    } else {
+      const previous = this[$filter];
+
+      this[$filter] = (v) => {
+        const vf = previous(v);
+        return vf === null ? vf : filter(vf);
+      };
+    }
   }
 
   $handleCall(peer?: unknown, arg?: OSCArgument): OSCArgument | undefined {
@@ -117,6 +175,7 @@ export abstract class NumericValue extends Value<number> {
 export class IntValue extends NumericValue {
   constructor() {
     super('i');
+    this.$filter = (v) => v === undefined ? v : Math.trunc(v);
   }
 }
 
