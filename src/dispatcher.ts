@@ -6,6 +6,7 @@ import {
   OSCArgument,
   osc,
 } from '@mxfriend/osc';
+import { Collection } from './collection';
 import { Command } from './command';
 import { Container } from './container';
 import { Monitor } from './monitor';
@@ -57,15 +58,19 @@ export class Dispatcher<
     }
   }
 
-  async query<T>(node: Value<T>): Promise<T | undefined>;
-  async query<Nodes extends QueryNodes>(...nodes: Nodes): Promise<QueryResult<Nodes>>;
-  async query(...nodes: Value[]): Promise<any[]>;
-  async query(...nodes: Value[]): Promise<any | any[]> {
+  public has(node: Node): boolean {
+    return this.nodes.has(node);
+  }
+
+  public async query<T>(node: Value<T>): Promise<T | undefined>;
+  public async query<Nodes extends QueryNodes>(...nodes: Nodes): Promise<QueryResult<Nodes>>;
+  public async query(...nodes: Value[]): Promise<any[]>;
+  public async query(...nodes: Value[]): Promise<any | any[]> {
     const result = await Promise.all(nodes.map(async (node) => this.queryValue(node)));
     return result.length > 1 ? result : result[0];
   }
 
-  async queryRecursive(...nodes: Node[]): Promise<void> {
+  public async queryRecursive(...nodes: Node[]): Promise<void> {
     for (const node of nodes) {
       if (node instanceof Container) {
         await this.queryRecursive(...await this.queryContainer(node));
@@ -75,7 +80,7 @@ export class Dispatcher<
     }
   }
 
-  private async queryContainer(container: Container, timeout?: number): Promise<Iterable<Node>> {
+  protected async queryContainer(container: Container, timeout?: number): Promise<Iterable<Node>> {
     if (!container.$callable) {
       return container.$children();
     }
@@ -91,19 +96,16 @@ export class Dispatcher<
 
     const knownProps = container.$getKnownProperties();
     const callableProps = container.$getCallableProperties();
-    const n = Math.min(knownProps.length, callableProps.length, args.length);
-    let i = 0;
+    const unusedProps = knownProps.filter((prop) => !callableProps.includes(prop));
 
-    for (; i < n; ++i) {
-      if (knownProps[i] !== callableProps[i]) {
-        break;
-      }
+    if (container instanceof Collection && !callableProps.length) {
+      unusedProps.push(...new Array(container.$size).keys());
     }
 
-    return knownProps.slice(i).map((prop) => container.$get(prop));
+    return unusedProps.map((prop) => container.$get(prop));
   }
 
-  private async queryValue<T>(node: Value<T>, timeout?: number): Promise<T | undefined> {
+  protected async queryValue<T>(node: Value<T>, timeout?: number): Promise<T | undefined> {
     const [args, peer] = await osc.query(this.port, {
       address: node.$address,
       timeout,
@@ -116,7 +118,7 @@ export class Dispatcher<
     return node.$get();
   }
 
-  private monitor(node: Node, key: symbol): void {
+  protected monitor(node: Node, key: symbol): void {
     const existing = this.nodes.get(node);
 
     if (existing) {
@@ -137,7 +139,7 @@ export class Dispatcher<
     this.emit('monitor', node);
   }
 
-  private unmonitor(node: Node, key?: symbol): void {
+  protected unmonitor(node: Node, key?: symbol): void {
     const monitor = this.nodes.get(node);
 
     if (!monitor || !monitor.unmonitor(key)) {
