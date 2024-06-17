@@ -4,25 +4,18 @@ import {
   EventEmitter,
   EventMap,
   OSCArgument,
-  OSCMessage,
+  osc,
 } from '@mxfriend/osc';
 import { Command } from './command';
 import { Container } from './container';
+import { Monitor } from './monitor';
 import { Node } from './node';
 import { Value } from './values';
 
-type NodeData = {
-  keys: Set<symbol>;
-  handleCall: (message: OSCMessage, peer?: unknown) => void;
-  handleAttached: (parent: Container, address: string) => void;
-  handleDetached: (parent: Container, address: string) => void;
-  listeners: NodeListenerMap;
+type QueryNodes = [Value, Value, ...Value[]];
+type QueryResult<Nodes extends [...Value[]]> = {
+  [i in keyof Nodes]: Nodes[i] extends Value<infer T> ? T | undefined : never;
 };
-
-export type NodeListenerMap = Set<[string, AnyEventHandler]>;
-
-type QueryNodes<T extends [...any]> = { [i in keyof T]: Value<T[i]> };
-type QueryResult<T extends [...any]> = Promise<{ [i in keyof T]: T[i] | undefined }>;
 
 export interface DispatcherEvents extends EventMap {
   monitor: [node: Node];
@@ -33,26 +26,16 @@ export class Dispatcher<
   TEvents extends DispatcherEvents = DispatcherEvents,
 > extends EventEmitter<TEvents> {
   protected readonly port: AbstractOSCPort;
-  private readonly nodes: Map<Node, NodeData> = new Map();
+  private readonly nodes: Map<Node, Monitor> = new Map();
 
   constructor(port: AbstractOSCPort) {
     super();
     this.port = port;
   }
 
-  public async addAndQuery<T>(key: symbol, node: Value<T>): Promise<T>;
-  public async addAndQuery<T extends [any, any, ...any]>(key: symbol, ...nodes: QueryNodes<T>): QueryResult<T>;
-  public async addAndQuery(key: symbol, ...nodes: Value[]): Promise<any[]>;
-  public async addAndQuery(key: symbol, ...nodes: Value[]): Promise<any | any[]> {
-    this.add(key, ...nodes);
-    return this.query(...nodes);
-  }
-
   public add(key: symbol, ...nodes: Node[]): void {
     for (const node of nodes) {
-      if (node.$callable) {
-        this.monitor(node, key);
-      }
+      this.monitor(node, key);
 
       if (node instanceof Container) {
         for (const child of node.$children()) {
@@ -64,132 +47,109 @@ export class Dispatcher<
 
   public remove(key: symbol, ...nodes: Node[]): void {
     for (const node of nodes) {
-      if (node.$callable) {
-        this.unmonitor(node, key);
-      }
-
       if (node instanceof Container) {
         for (const child of node.$children(true)) {
           this.remove(key, child);
         }
       }
+
+      this.unmonitor(node, key);
     }
   }
 
   async query<T>(node: Value<T>): Promise<T | undefined>;
-  async query<T extends [any, any, ...any]>(...nodes: QueryNodes<T>): QueryResult<T>;
+  async query<Nodes extends QueryNodes>(...nodes: Nodes): Promise<QueryResult<Nodes>>;
   async query(...nodes: Value[]): Promise<any[]>;
   async query(...nodes: Value[]): Promise<any | any[]> {
-    const result = await Promise.all(nodes.map((node) => this.queryNode(node)));
+    const result = await Promise.all(nodes.map(async (node) => this.queryValue(node)));
     return result.length > 1 ? result : result[0];
   }
 
-  private async queryNode<T>(node: Value<T>, timeout?: number): Promise<T | undefined> {
-    return new Promise(async (resolve, reject) => {
-      let to: NodeJS.Timeout;
-      let qi: NodeJS.Timeout;
+  async queryRecursive(...nodes: Node[]): Promise<void> {
+    for (const node of nodes) {
+      if (node instanceof Container) {
+        await this.queryRecursive(...await this.queryContainer(node));
+      } else if (node instanceof Value) {
+        await this.queryValue(node);
+      }
+    }
+  }
 
-      const done = (message: OSCMessage, peer?: unknown) => {
-        cleanup();
+  private async queryContainer(container: Container, timeout?: number): Promise<Iterable<Node>> {
+    if (!container.$callable) {
+      return container.$children();
+    }
 
-        if (!this.nodes.has(node)) {
-          node.$handleCall(peer, ...message.args);
-        }
-
-        resolve(node.$get());
-      };
-
-      const abort = () => {
-        cleanup();
-        reject(new Error('Timeout'));
-      };
-
-      const cleanup = () => {
-        this.port.unsubscribe(node.$address, done);
-        to && clearTimeout(to);
-        qi && clearInterval(qi);
-      };
-
-      this.port.subscribe(node.$address, done);
-      await this.port.send(node.$address);
-      qi = setInterval(async () => this.port.send(node.$address), 500);
-      timeout && (to = setTimeout(abort, timeout));
+    const [args, peer] = await osc.query(this.port, {
+      address: container.$address,
+      timeout,
     });
+
+    if (!this.nodes.has(container)) {
+      container.$handleCall(peer, ...args);
+    }
+
+    const knownProps = container.$getKnownProperties();
+    const callableProps = container.$getCallableProperties();
+    const n = Math.min(knownProps.length, callableProps.length, args.length);
+    let i = 0;
+
+    for (; i < n; ++i) {
+      if (knownProps[i] !== callableProps[i]) {
+        break;
+      }
+    }
+
+    return knownProps.slice(i).map((prop) => container.$get(prop));
+  }
+
+  private async queryValue<T>(node: Value<T>, timeout?: number): Promise<T | undefined> {
+    const [args, peer] = await osc.query(this.port, {
+      address: node.$address,
+      timeout,
+    });
+
+    if (!this.nodes.has(node)) {
+      node.$handleCall(peer, ...args);
+    }
+
+    return node.$get();
   }
 
   private monitor(node: Node, key: symbol): void {
     const existing = this.nodes.get(node);
 
     if (existing) {
-      existing.keys.add(key);
+      existing.monitor(key);
       return;
     }
 
-    const data: NodeData = {
-      keys: new Set([key]),
-      handleCall: async (message, peer) => {
-        const response = node.$handleCall(peer, ...message.args);
+    const monitor = this.createMonitor(node);
+    monitor.monitor(key);
+    this.nodes.set(node, monitor);
 
-        if (response) {
-          await this.port.send(node.$address, Array.isArray(response) ? response : [response], peer);
-        }
-      },
-      handleAttached: (parent, address) => {
-        this.port.subscribe(address, data.handleCall);
+    monitor.init();
 
-        for (const [event, handler] of data.listeners) {
-          node.$on(event, handler);
-        }
-      },
-      handleDetached: (parent, address) => {
-        this.port.unsubscribe(address, data.handleCall);
-
-        for (const [event, handler] of data.listeners) {
-          node.$off(event, handler);
-        }
-      },
-      listeners: new Set(this.createNodeListeners(node)),
-    };
-
-    if (node.$parent) {
-      data.handleAttached(node.$parent, node.$address);
-    }
-
-    node.$on('attached', data.handleAttached);
-    node.$on('detached', data.handleDetached);
-
-    node.$on('destroy', () => {
+    monitor.on('destroyed', () => {
       this.unmonitor(node);
     });
 
-    this.nodes.set(node, data);
     this.emit('monitor', node);
   }
 
   private unmonitor(node: Node, key?: symbol): void {
-    const data = this.nodes.get(node);
+    const monitor = this.nodes.get(node);
 
-    if (!data) {
+    if (!monitor || !monitor.unmonitor(key)) {
       return;
     }
 
-    if (key !== undefined) {
-      data.keys.delete(key);
-
-      if (data.keys.size) {
-        return;
-      }
-    }
-
-    node.$off('attached', data.handleAttached);
-    node.$off('detached', data.handleDetached);
     this.nodes.delete(node);
-
-    if (node.$parent) {
-      data.handleDetached(node.$parent, node.$address);
-    }
-
     this.emit('unmonitor', node);
+  }
+
+  protected createMonitor(node: Node): Monitor {
+    return new Monitor(this, this.port, node, new Set(this.createNodeListeners(node)));
   }
 
   protected * createNodeListeners(node: Node): IterableIterator<[string, AnyEventHandler]> {

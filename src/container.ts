@@ -144,7 +144,7 @@ export abstract class Container<
     return getKnownProperties(this);
   }
 
-  protected $getCallableProperties(): (string | number)[] {
+  $getCallableProperties(): (string | number)[] {
     return this.$getKnownProperties();
   }
 
