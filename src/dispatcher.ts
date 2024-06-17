@@ -98,7 +98,7 @@ export class Dispatcher<
     const callableProps = container.$getCallableProperties();
     const unusedProps = knownProps.filter((prop) => !callableProps.includes(prop));
 
-    if (container instanceof Collection && !callableProps.length) {
+    if (container instanceof Collection && callableProps.length) {
       unusedProps.push(...new Array(container.$size).keys());
     }
 
