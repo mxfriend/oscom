@@ -35,9 +35,15 @@ export abstract class Container<
       throw new Error('Node is not callable');
     }
 
-    const props = this.$getCallableProperties();
-    const [results] = this.$applyToValues(props, args, (node, arg) => node.$handleCall(peer, arg));
+    const [results] = this.$applyToCallable(args, (node, arg) => node.$handleCall(peer, arg));
     return results;
+  }
+
+  $applyToCallable<A, R>(
+    args: A[],
+    cb: (node: Value, arg?: A) => R | undefined,
+  ): [results: R[] | undefined, unused: (string | number)[]] {
+    return this.$applyToValues(this.$getCallableProperties(), args, cb);
   }
 
   $applyToValues<A, R>(
@@ -156,6 +162,10 @@ export abstract class Container<
         yield keys ? [prop, this.$get(prop)] : this.$get(prop);
       }
     }
+  }
+
+  $childProps(): (string | number)[] {
+    return this.$getKnownProperties();
   }
 
   $children(lazy?: boolean, keys?: false): IterableIterator<Node>;

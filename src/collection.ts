@@ -1,6 +1,6 @@
-import { OSCArgument } from '@mxfriend/osc';
 import { Container, ContainerEvents } from './container';
 import { Node } from './node';
+import { Value } from './values';
 
 export type ItemFactory<T extends Node = any> = {
   (idx: number): T;
@@ -43,14 +43,13 @@ export class Collection<
     return this[$items].length;
   }
 
-  $handleCall(peer?: unknown, ...args: OSCArgument[]): OSCArgument[] | undefined {
-    if (!this.$callable || this.$getCallableProperties().length) {
-      return super.$handleCall(peer, ...args);
-    }
-
-    const props = [...this[$items].keys()];
-    const [results] = this.$applyToValues(props, args, (node, arg) => node.$handleCall(peer, arg));
-    return results;
+  $applyToCallable<A, R>(
+    args: A[],
+    cb: (node: Value, arg?: A) => R | undefined,
+  ): [results: R[] | undefined, unused: (string | number)[]] {
+    const [results, unused] = super.$applyToCallable(args, cb);
+    const attrs = super.$getCallableProperties();
+    return [results, attrs.length ? unused.concat(...this[$items].keys()) : unused];
   }
 
   $get(prop: string): Node;
@@ -125,6 +124,11 @@ export class Collection<
     super.$attach(prop, value);
   }
 
+  $getCallableProperties(): (string | number)[] {
+    const attrs = super.$getCallableProperties();
+    return attrs.length ? attrs : [...this[$items].keys()];
+  }
+
   * [Symbol.iterator](): IterableIterator<T> {
     yield * this.$items();
   }
@@ -137,6 +141,13 @@ export class Collection<
         yield keys ? [i, this.$get(i)] : this.$get(i);
       }
     }
+  }
+
+  $childProps(): (string | number)[] {
+    return [
+      ...super.$childProps(),
+      ...this[$items].keys(),
+    ];
   }
 
   $children(lazy?: boolean, keys?: false): IterableIterator<Node>;

@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+export * from './clientDispatcher';
 export * from './collection';
 export * from './command';
 export * from './container';

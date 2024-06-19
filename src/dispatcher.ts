@@ -3,14 +3,12 @@ import {
   AnyEventHandler,
   EventEmitter,
   EventMap,
-  OSCArgument,
   osc,
 } from '@mxfriend/osc';
-import { Collection } from './collection';
-import { Command } from './command';
 import { Container } from './container';
 import { Monitor } from './monitor';
 import { Node } from './node';
+import { Root } from './root';
 import { Value } from './values';
 
 type QueryNodes = [Value, Value, ...Value[]];
@@ -70,12 +68,18 @@ export class Dispatcher<
     return result.length > 1 ? result : result[0];
   }
 
-  public async queryRecursive(...nodes: Node[]): Promise<void> {
-    for (const node of nodes) {
+  public async queryRecursive(...nodes: Node[]): Promise<void>;
+  public async queryRecursive(timeout: number | undefined, ...nodes: Node[]): Promise<void>;
+  public async queryRecursive(timeoutOrNode: Node | number | undefined, ...otherNodes: Node[]): Promise<void> {
+    const [timeout, nodes] = timeoutOrNode instanceof Node
+      ? [undefined, [timeoutOrNode, ...otherNodes]]
+      : [timeoutOrNode, otherNodes];
+
+    for (const node of nodes) if (node instanceof Root || node.$parent) {
       if (node instanceof Container) {
-        await this.queryRecursive(...await this.queryContainer(node));
+        await this.queryRecursive(timeout, ...await this.queryContainer(node, timeout));
       } else if (node instanceof Value) {
-        await this.queryValue(node);
+        await this.queryValue(node, timeout);
       }
     }
   }
@@ -94,15 +98,8 @@ export class Dispatcher<
       container.$handleCall(peer, ...args);
     }
 
-    const knownProps = container.$getKnownProperties();
-    const callableProps = container.$getCallableProperties();
-    const unusedProps = knownProps.filter((prop) => !callableProps.includes(prop));
-
-    if (container instanceof Collection && callableProps.length) {
-      unusedProps.push(...new Array(container.$size).keys());
-    }
-
-    return unusedProps.map((prop) => container.$get(prop));
+    const [, unused] = container.$applyToCallable(args, (_, arg) => arg);
+    return unused.map((prop) => container.$get(prop));
   }
 
   protected async queryValue<T>(node: Value<T>, timeout?: number): Promise<T | undefined> {
@@ -155,15 +152,5 @@ export class Dispatcher<
   }
 
   protected * createNodeListeners(node: Node): IterableIterator<[string, AnyEventHandler]> {
-    if (node instanceof Value) {
-      yield ['local-change', async () => {
-        const value = node.$toOSC();
-        value && node.$address && await this.port.send(node.$address, [value]);
-      }];
-    } else if (node instanceof Command) {
-      yield ['local-call', async (args?: OSCArgument[]) => {
-        node.$address && await this.port.send(node.$address, args);
-      }];
-    }
   }
 }
